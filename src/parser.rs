@@ -28,7 +28,6 @@ impl<'a> Parser<'a> {
         }
 
         let block = self.block();
-        eprintln!("{:#?}", block);
         if !self.consume(Token::Symbol(Symbol::Period)) {
             panic!("expected period");
         }
@@ -38,7 +37,6 @@ impl<'a> Parser<'a> {
 
     fn block(&mut self) -> Block {
         let decls = self.declarations();
-        eprintln!("decls: {:#?}", decls);
         let compound = self.compound_statement();
         Block(decls, compound)
     }
