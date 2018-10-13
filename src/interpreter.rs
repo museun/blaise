@@ -18,6 +18,15 @@ enum Error {
     InvalidUnaryAdd(Object),
     InvalidUnarySub(Object),
     InvalidUnaryNot(Object),
+
+    InvalidAnd(Object, Object),
+    InvalidOr(Object, Object),
+    InvalidLessThan(Object, Object),
+    InvalidGreaterThan(Object, Object),
+    InvalidLessThanEqual(Object, Object),
+    InvalidGreaterThanEqual(Object, Object),
+    InvalidEqual(Object, Object),
+    InvalidNotEqual(Object, Object),
 }
 
 impl fmt::Display for Error {
@@ -60,10 +69,59 @@ impl Interpreter {
     fn visit_declarations(&mut self, node: &[Declaration]) -> Result<(), Error> {
         for decl in node {
             match decl {
+                Declaration::Procedure(list) => {
+                    for proc in list {
+                        self.visit_procedure_declaration(proc)?;
+                    }
+                }
+                Declaration::Function(list) => {
+                    for func in list {
+                        self.visit_function_declaration(func)?;
+                    }
+                }
                 _ => {}
             }
         }
         Ok(())
+    }
+
+    fn visit_procedure_declaration(&mut self, node: &ProcedureDeclaration) -> Result<(), Error> {
+        let (name, list, block) = (&node.0, &node.1, &node.2);
+        let params = self.visit_formal_parameter_list(list)?;
+        self.scope()?.set(
+            name.clone(),
+            Object::Procedure(name.clone(), params, block.clone()),
+        );
+        Ok(())
+    }
+
+    fn visit_function_declaration(&mut self, node: &FunctionDeclaration) -> Result<(), Error> {
+        let (name, list, block, ty) = (&node.0, &node.1, &node.2, &node.3);
+        let params = self.visit_formal_parameter_list(list)?;
+        self.scope()?.set(
+            name.clone(),
+            Object::Function(name.clone(), params, block.clone(), ty.clone()),
+        );
+        Ok(())
+    }
+
+    fn visit_formal_parameter_list(
+        &mut self,
+        node: &FormalParameterList,
+    ) -> Result<Vec<String>, Error> {
+        let params = &node.0;
+        let mut names = vec![];
+
+        for param in params {
+            let mut new = self.visit_formal_parameter(param)?;
+            names.append(&mut new);
+        }
+
+        Ok(names)
+    }
+
+    fn visit_formal_parameter(&mut self, node: &FormalParameter) -> Result<Vec<String>, Error> {
+        Ok(node.0.to_vec())
     }
 
     fn visit_compound(&mut self, node: &Compound) -> Result<Object, Error> {
@@ -78,7 +136,17 @@ impl Interpreter {
         match node {
             Statement::Compound(comp) => self.visit_compound(comp),
             Statement::Assignment(assign) => self.visit_assignment(assign),
+            Statement::FunctionCall(call) => self.visit_function_call(call),
+            Statement::IfStatement(stmt) => self.visit_if_statement(stmt),
         }
+    }
+
+    fn visit_function_call(&mut self, node: &FunctionCall) -> Result<Object, Error> {
+        unimplemented!()
+    }
+
+    fn visit_if_statement(&mut self, node: &IfStatement) -> Result<Object, Error> {
+        unimplemented!()
     }
 
     fn visit_assignment(&mut self, node: &Assignment) -> Result<Object, Error> {
@@ -93,6 +161,7 @@ impl Interpreter {
             Expression::Binary(expr) => self.visit_binary_op(expr),
             Expression::Literal(expr) => self.visit_literal(expr),
             Expression::Variable(expr) => self.visit_variable(expr),
+            Expression::FunctionCall(call) => self.visit_function_call(call),
         }
     }
 
@@ -120,6 +189,31 @@ impl Interpreter {
             BinaryExpression(left, BinaryOperator::Div, expr) => self
                 .visit_expression(left)?
                 .int_divide(&self.visit_expression(expr)?),
+
+            BinaryExpression(left, BinaryOperator::And, expr) => self
+                .visit_expression(left)?
+                .and(&self.visit_expression(expr)?),
+            BinaryExpression(left, BinaryOperator::Or, expr) => self
+                .visit_expression(left)?
+                .or(&self.visit_expression(expr)?),
+            BinaryExpression(left, BinaryOperator::LessThan, expr) => self
+                .visit_expression(left)?
+                .less_than(&self.visit_expression(expr)?),
+            BinaryExpression(left, BinaryOperator::GreaterThan, expr) => self
+                .visit_expression(left)?
+                .greater_than(&self.visit_expression(expr)?),
+            BinaryExpression(left, BinaryOperator::LessThanEqual, expr) => self
+                .visit_expression(left)?
+                .less_than_equal(&self.visit_expression(expr)?),
+            BinaryExpression(left, BinaryOperator::GreaterThanEqual, expr) => self
+                .visit_expression(left)?
+                .greater_than_equal(&self.visit_expression(expr)?),
+            BinaryExpression(left, BinaryOperator::Equal, expr) => self
+                .visit_expression(left)?
+                .equal(&self.visit_expression(expr)?),
+            BinaryExpression(left, BinaryOperator::NotEqual, expr) => self
+                .visit_expression(left)?
+                .not_equal(&self.visit_expression(expr)?),
         }
     }
 
@@ -168,6 +262,8 @@ impl Interpreter {
 enum Object {
     Unit,
     Primitive(Primitive),
+    Procedure(String, Vec<String>, crate::ast::Block),
+    Function(String, Vec<String>, crate::ast::Block, crate::ast::Type),
 }
 
 #[derive(Debug, Clone)]
@@ -245,6 +341,85 @@ impl Object {
                 Object::Primitive(Primitive::Integer(right)),
             ) => Ok(Object::Primitive(Primitive::Integer(left / right))),
             (left, right) => Err(Error::InvalidIntDiv(left.clone(), right.clone())),
+        }
+    }
+
+    pub fn and(&self, other: &Self) -> Result<Self, Error> {
+        match (self, other) {
+            (
+                Object::Primitive(Primitive::Boolean(left)),
+                Object::Primitive(Primitive::Boolean(right)),
+            ) => Ok(Object::Primitive(Primitive::Boolean(*left && *right))),
+            (left, right) => Err(Error::InvalidAnd(left.clone(), right.clone())),
+        }
+    }
+    pub fn or(&self, other: &Self) -> Result<Self, Error> {
+        match (self, other) {
+            (
+                Object::Primitive(Primitive::Boolean(left)),
+                Object::Primitive(Primitive::Boolean(right)),
+            ) => Ok(Object::Primitive(Primitive::Boolean(*left || *right))),
+            (left, right) => Err(Error::InvalidOr(left.clone(), right.clone())),
+        }
+    }
+    pub fn less_than(&self, other: &Self) -> Result<Self, Error> {
+        match (self, other) {
+            (
+                Object::Primitive(Primitive::Integer(left)),
+                Object::Primitive(Primitive::Integer(right)),
+            ) => Ok(Object::Primitive(Primitive::Boolean(left < right))),
+
+            (left, right) => Err(Error::InvalidLessThan(left.clone(), right.clone())),
+        }
+    }
+    pub fn greater_than(&self, other: &Self) -> Result<Self, Error> {
+        match (self, other) {
+            (
+                Object::Primitive(Primitive::Integer(left)),
+                Object::Primitive(Primitive::Integer(right)),
+            ) => Ok(Object::Primitive(Primitive::Boolean(left > right))),
+
+            (left, right) => Err(Error::InvalidGreaterThan(left.clone(), right.clone())),
+        }
+    }
+    pub fn less_than_equal(&self, other: &Self) -> Result<Self, Error> {
+        match (self, other) {
+            (
+                Object::Primitive(Primitive::Integer(left)),
+                Object::Primitive(Primitive::Integer(right)),
+            ) => Ok(Object::Primitive(Primitive::Boolean(left <= right))),
+
+            (left, right) => Err(Error::InvalidLessThanEqual(left.clone(), right.clone())),
+        }
+    }
+    pub fn greater_than_equal(&self, other: &Self) -> Result<Self, Error> {
+        match (self, other) {
+            (
+                Object::Primitive(Primitive::Boolean(left)),
+                Object::Primitive(Primitive::Boolean(right)),
+            ) => Ok(Object::Primitive(Primitive::Boolean(left >= right))),
+
+            (left, right) => Err(Error::InvalidGreaterThanEqual(left.clone(), right.clone())),
+        }
+    }
+    pub fn equal(&self, other: &Self) -> Result<Self, Error> {
+        match (self, other) {
+            (
+                Object::Primitive(Primitive::Integer(left)),
+                Object::Primitive(Primitive::Integer(right)),
+            ) => Ok(Object::Primitive(Primitive::Boolean(left == right))),
+
+            (left, right) => Err(Error::InvalidEqual(left.clone(), right.clone())),
+        }
+    }
+    pub fn not_equal(&self, other: &Self) -> Result<Self, Error> {
+        match (self, other) {
+            (
+                Object::Primitive(Primitive::Integer(left)),
+                Object::Primitive(Primitive::Integer(right)),
+            ) => Ok(Object::Primitive(Primitive::Boolean(left != right))),
+
+            (left, right) => Err(Error::InvalidNotEqual(left.clone(), right.clone())),
         }
     }
 }

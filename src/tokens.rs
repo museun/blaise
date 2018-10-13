@@ -27,6 +27,7 @@ impl Token {
         match self {
             Reserved(s) => format!("{}", s).len(),
             Symbol(s) => format!("{}", s).len(),
+            Type(ty) => format!("{:?}", ty).len(),
 
             Identifier(id) => id.len(),
             Number(n) => count_digits(*n as usize),
@@ -285,7 +286,6 @@ impl<'a> Iterator for Tokens<'a> {
 
         let n = self.data.get(self.pos()).cloned();
         self.pos += 1;
-        eprintln!("next> {:?}", n.as_ref().map(|(_, t)| t));
         n
     }
 }
@@ -320,11 +320,11 @@ impl<'a> fmt::Display for Tokens<'a> {
                     format!("{},{} {: <width$}: Comment", start, end, "", width = width)
                 }
                 Label(s) => format!("{} {: <width$}: Label", s, "", width = width),
+                Type(ty) => format!("{:?} {: <width$}: Type", ty, "", width = width),
 
                 Directive => format!("{} {: <width$}: Directive", "", "", width = width),
                 Unknown => format!("{} {: <width$}: Unknown", "", "", width = width),
 
-                Type(_ty) => "ty".into(),
                 EOF => "EOF".into(),
             }
         }

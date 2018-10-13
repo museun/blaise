@@ -12,8 +12,8 @@ impl Lexer {
             number_lexer,
             string_lexer,
             special_lexer,
-            identifier_lexer,
             type_lexer,
+            identifier_lexer,
             unknown_lexer,
         ];
 
@@ -239,10 +239,13 @@ fn type_lexer(stream: &mut Stream) -> State {
     if !c.is_ascii_alphabetic() {
         return State::Yield;
     }
-    stream.seek(stream.pos() - 1);
     let name = stream
         .take_while(|&c| c.is_ascii_alphabetic())
         .collect::<String>();
+
+    if name.is_empty() {
+        return State::Yield;
+    }
 
     let skip = name.len() - 1;
     for ty in TYPES {
