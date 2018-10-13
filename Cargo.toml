@@ -1,0 +1,10 @@
+[package]
+name = "blaise"
+version = "0.1.0"
+authors = ["museun <museun@outlook.com>"]
+edition = "2018"
+
+[dependencies]
+log = "0.4.5"
+env_logger = "0.5.13"
+itertools = "0.7.8"
