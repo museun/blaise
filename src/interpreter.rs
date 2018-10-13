@@ -221,6 +221,7 @@ impl Interpreter {
         Ok(match node {
             Literal::Integer(n) => Object::Primitive(Primitive::Integer(*n)),
             Literal::String(s) => Object::Primitive(Primitive::String(s.clone())),
+            Literal::Boolean(b) => Object::Primitive(Primitive::Boolean(*b)),
         })
     }
 

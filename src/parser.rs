@@ -1,5 +1,4 @@
 use crate::ast::*;
-use crate::span::Span;
 use crate::tokens::*;
 
 pub struct Parser<'a> {
@@ -10,9 +9,9 @@ impl<'a> Parser<'a> {
     pub fn parse(tokens: Tokens<'a>) -> Program {
         let mut this = Self { tokens };
         let program = this.program();
-        match this.tokens.next() {
-            Some((_, Token::EOF)) => {}
-            t => unimplemented!("{:#?}", t),
+        match this.tokens.next().unwrap() {
+            Token::EOF => {}
+            t => panic!("{:#?}", t),
         }
         program
     }
@@ -43,10 +42,10 @@ impl<'a> Parser<'a> {
 
     fn declarations(&mut self) -> Vec<Declaration> {
         let mut decls = vec![];
-        if let Some((_, Token::Reserved(Reserved::Var))) = self.tokens.peek() {
+        if let Token::Reserved(Reserved::Var) = self.tokens.peek().unwrap() {
             self.tokens.advance();
             let mut vars = vec![];
-            while let Some((_, Token::Identifier(_))) = self.tokens.peek() {
+            while let Token::Identifier(_) = self.tokens.peek().unwrap() {
                 vars.push(self.variable_declaration())
             }
             if !vars.is_empty() {
@@ -60,13 +59,9 @@ impl<'a> Parser<'a> {
         let mut funcs = vec![];
 
         loop {
-            match self.tokens.peek() {
-                Some((_, Token::Reserved(Reserved::Procedure))) => {
-                    procs.push(self.procedure_declaration())
-                }
-                Some((_, Token::Reserved(Reserved::Function))) => {
-                    funcs.push(self.function_declaration())
-                }
+            match self.tokens.peek().unwrap() {
+                Token::Reserved(Reserved::Procedure) => procs.push(self.procedure_declaration()),
+                Token::Reserved(Reserved::Function) => funcs.push(self.function_declaration()),
                 _ => break,
             };
         }
@@ -87,28 +82,25 @@ impl<'a> Parser<'a> {
 
     fn procedure_declaration(&mut self) -> ProcedureDeclaration {
         // proc decl ::= PROC ID (LPAREN, list, RPAREN)? SEMI block
-        let name = match (self.tokens.next(), self.tokens.next()) {
-            (
-                Some((_, Token::Reserved(Reserved::Procedure))),
-                Some((_, Token::Identifier(name))),
-            ) => name,
-            (l, r) => unimplemented!("{:?} | {:?}", l, r),
+        let name = match (self.tokens.next().unwrap(), self.tokens.next().unwrap()) {
+            (Token::Reserved(Reserved::Procedure), Token::Identifier(name)) => name,
+            (l, r) => panic!("{:?} | {:?}", l, r),
         };
 
-        let params = match self.tokens.peek() {
-            Some((_, Token::Symbol(Symbol::OpenParen))) => {
+        let params = match self.tokens.peek().unwrap() {
+            Token::Symbol(Symbol::OpenParen) => {
                 self.tokens.advance();
-                match (self.formal_parameter_list(), self.tokens.next()) {
-                    (list, Some((_, Token::Symbol(Symbol::CloseParen)))) => list,
-                    (_, t) => unimplemented!("{:#?}", t),
+                match (self.formal_parameter_list(), self.tokens.next().unwrap()) {
+                    (list, Token::Symbol(Symbol::CloseParen)) => list,
+                    (_, t) => panic!("{:#?}", t),
                 }
             }
             _ => FormalParameterList(vec![]),
         };
 
-        let block = match self.tokens.next() {
-            Some((_, Token::Symbol(Symbol::SemiColon))) => self.block(),
-            t => unimplemented!("{:#?}", t),
+        let block = match self.tokens.next().unwrap() {
+            Token::Symbol(Symbol::SemiColon) => self.block(),
+            t => panic!("{:#?}", t),
         };
 
         ProcedureDeclaration(name, params, block)
@@ -116,32 +108,29 @@ impl<'a> Parser<'a> {
 
     fn function_declaration(&mut self) -> FunctionDeclaration {
         // func decl ::= FUNC ID LPAREN list RPAREN COLON type SEMI block
-        let name = match (self.tokens.next(), self.tokens.next()) {
-            (
-                Some((_, Token::Reserved(Reserved::Function))),
-                Some((_, Token::Identifier(name))),
-            ) => name,
-            (l, r) => unimplemented!("{:?} | {:?}", l, r),
+        let name = match (self.tokens.next().unwrap(), self.tokens.next().unwrap()) {
+            (Token::Reserved(Reserved::Function), Token::Identifier(name)) => name,
+            (l, r) => panic!("{:?} | {:?}", l, r),
         };
 
-        let params = match self.tokens.next() {
-            Some((_, Token::Symbol(Symbol::OpenParen))) => {
-                match (self.formal_parameter_list(), self.tokens.next()) {
-                    (list, Some((_, Token::Symbol(Symbol::CloseParen)))) => list,
-                    (_, t) => unimplemented!("{:#?}", t),
+        let params = match self.tokens.next().unwrap() {
+            Token::Symbol(Symbol::OpenParen) => {
+                match (self.formal_parameter_list(), self.tokens.next().unwrap()) {
+                    (list, Token::Symbol(Symbol::CloseParen)) => list,
+                    (_, t) => panic!("{:#?}", t),
                 }
             }
             _ => FormalParameterList(vec![]),
         };
 
-        let ret = match self.tokens.next() {
-            Some((_, Token::Symbol(Symbol::Colon))) => self.ty(),
-            t => unimplemented!("{:#?}", t),
+        let ret = match self.tokens.next().unwrap() {
+            Token::Symbol(Symbol::Colon) => self.ty(),
+            t => panic!("{:#?}", t),
         };
 
-        let block = match self.tokens.next() {
-            Some((_, Token::Symbol(Symbol::SemiColon))) => self.block(),
-            t => unimplemented!("{:#?}", t),
+        let block = match self.tokens.next().unwrap() {
+            Token::Symbol(Symbol::SemiColon) => self.block(),
+            t => panic!("{:#?}", t),
         };
 
         FunctionDeclaration(name, params, block, ret)
@@ -149,36 +138,33 @@ impl<'a> Parser<'a> {
 
     fn variable_declaration(&mut self) -> VariableDeclaration {
         let mut idents = vec![];
-        match self.tokens.next() {
-            Some((_, Token::Identifier(id))) => idents.push(id),
-            t => unimplemented!("{:#?}", t),
+        match self.tokens.next().unwrap() {
+            Token::Identifier(id) => idents.push(id),
+            t => panic!("{:#?}", t),
         };
 
-        while let Some((_, Token::Symbol(Symbol::Comma))) = self.tokens.peek() {
+        while let Token::Symbol(Symbol::Comma) = self.tokens.peek().unwrap() {
             self.tokens.advance(); // eat comma
-            match self.tokens.next() {
-                Some((_, Token::Identifier(id))) => idents.push(id),
-                t => unimplemented!("{:#?}", t),
+            match self.tokens.next().unwrap() {
+                Token::Identifier(id) => idents.push(id),
+                t => panic!("{:#?}", t),
             };
         }
 
         // var a,b,c,d : integer;
-        match self.tokens.next() {
-            Some((_, Token::Symbol(Symbol::Colon))) => match (self.ty(), self.tokens.next()) {
-                (ty, Some((_, Token::Symbol(Symbol::SemiColon)))) => {
-                    VariableDeclaration(idents, ty)
-                }
-                t => unimplemented!("expected ; after {:#?}", t),
+        match self.tokens.next().unwrap() {
+            Token::Symbol(Symbol::Colon) => match (self.ty(), self.tokens.next().unwrap()) {
+                (ty, Token::Symbol(Symbol::SemiColon)) => VariableDeclaration(idents, ty),
+                t => panic!("expected ; after {:#?}", t),
             },
-            t => unimplemented!("{:#?}", t),
+            t => panic!("{:#?}", t),
         }
     }
 
     fn compound_statement(&mut self) -> Compound {
-        match self.tokens.next() {
-            Some((_, Token::Reserved(Reserved::Begin))) => {}
-            Some((s, t)) => unimplemented!("{}: {:#?}", s, t),
-            _ => panic!(),
+        match self.tokens.next().unwrap() {
+            Token::Reserved(Reserved::Begin) => {}
+            token => panic!("{:#?}", token),
         };
 
         let mut statements = vec![];
@@ -189,73 +175,67 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&mut self) -> Statement {
-        match self.tokens.peek() {
-            Some((_, Token::Reserved(Reserved::Begin))) => {
-                Statement::Compound(self.compound_statement())
-            }
-            Some((_, Token::Identifier(_))) => match self.tokens.peek_ahead(1) {
-                Some((_, Token::Symbol(Symbol::OpenParen))) => {
-                    Statement::FunctionCall(self.function_call())
-                }
-                Some((_, Token::Symbol(Symbol::Assign))) => {
-                    Statement::Assignment(self.assignment_statement())
-                }
-                t => unimplemented!("{:#?}", t),
+        match self.tokens.peek().unwrap() {
+            Token::Reserved(Reserved::Begin) => Statement::Compound(self.compound_statement()),
+            Token::Identifier(_) => match self.tokens.peek_ahead(1).unwrap() {
+                Token::Symbol(Symbol::OpenParen) => Statement::FunctionCall(self.function_call()),
+                Token::Symbol(Symbol::Assign) => Statement::Assignment(self.assignment_statement()),
+                t => panic!("{:#?}", t),
             },
-            Some((_, Token::Reserved(Reserved::If))) => Statement::IfStatement(self.if_statement()),
-            t => unimplemented!("{:#?}", t),
+            Token::Reserved(Reserved::If) => Statement::IfStatement(self.if_statement()),
+            t => panic!("{:#?}", t),
         }
     }
 
     fn function_call(&mut self) -> FunctionCall {
-        let id = match (self.variable(), self.tokens.next()) {
-            (var, Some((_, Token::Symbol(Symbol::OpenParen)))) => var,
-            (var, t) => unimplemented!("{:#?} var: {:#?}", var, t),
+        let id = match (self.variable(), self.tokens.next().unwrap()) {
+            (var, Token::Symbol(Symbol::OpenParen)) => var,
+            (var, t) => panic!("{:#?} var: {:#?}", var, t),
         };
 
-        match (self.call_params(), self.tokens.next(), self.tokens.next()) {
-            (
-                params,
-                Some((_, Token::Symbol(Symbol::CloseParen))),
-                Some((_, Token::Symbol(Symbol::SemiColon))),
-            ) => FunctionCall(id, params),
-            (params, l, r) => unimplemented!("{:#?} params {:#?} | {:#?}", params, l, r),
+        match (
+            self.call_params(),
+            self.tokens.next().unwrap(),
+            self.tokens.next().unwrap(),
+        ) {
+            (params, Token::Symbol(Symbol::CloseParen), Token::Symbol(Symbol::SemiColon)) => {
+                FunctionCall(id, params)
+            }
+            (params, l, r) => panic!("{:#?} params {:#?} | {:#?}", params, l, r),
         }
     }
 
     fn function_call_expr(&mut self, left: &Expression) -> FunctionCall {
-        match (left, self.tokens.current()) {
-            (Expression::Variable(name), Some((_, Token::Symbol(Symbol::OpenParen)))) => {
-                match (self.call_params(), self.tokens.next()) {
-                    (params, Some((_, Token::Symbol(Symbol::CloseParen)))) => {
+        match (left, self.tokens.current().unwrap()) {
+            (Expression::Variable(name), Token::Symbol(Symbol::OpenParen)) => {
+                match (self.call_params(), self.tokens.next().unwrap()) {
+                    (params, Token::Symbol(Symbol::CloseParen)) => {
                         FunctionCall(name.clone(), params)
                     }
-                    (params, _) => panic!(""),
+                    (params, ty) => panic!("{:#?} | {:#?}", params, ty),
                 }
             }
-            t => panic!(),
+            t => panic!("{:#?}", t),
         }
     }
 
     fn if_statement(&mut self) -> IfStatement {
         // if_stmt ::= IF expr THEN comp_stmt (ELSE (if_stmt | comp_stmt))?
-        let (expr, compound) = match self.tokens.next() {
-            Some((_, Token::Reserved(Reserved::If))) => {
-                match (self.expression(None), self.tokens.next()) {
-                    (expr, Some((_, Token::Reserved(Reserved::Then)))) => {
-                        (expr, self.compound_statement())
-                    }
-                    (expr, t) => unimplemented!("{:#?} expr {:#?}", expr, t),
+        let (expr, compound) = match self.tokens.next().unwrap() {
+            Token::Reserved(Reserved::If) => {
+                match (self.expression(None), self.tokens.next().unwrap()) {
+                    (expr, Token::Reserved(Reserved::Then)) => (expr, self.compound_statement()),
+                    (expr, t) => panic!("{:#?} expr {:#?}", expr, t),
                 }
             }
-            t => unimplemented!("{:#?}", t),
+            t => panic!("{:#?}", t),
         };
 
-        match self.tokens.next() {
-            Some((_, Token::Reserved(Reserved::Else))) => {
+        match self.tokens.next().unwrap() {
+            Token::Reserved(Reserved::Else) => {
                 self.tokens.advance();
-                match self.tokens.peek() {
-                    Some((_, Token::Reserved(Reserved::If))) => {
+                match self.tokens.peek().unwrap() {
+                    Token::Reserved(Reserved::If) => {
                         IfStatement::IfElseIf(expr, compound, Box::new(self.if_statement()))
                     }
                     _ => IfStatement::IfElse(expr, compound, self.compound_statement()),
@@ -266,11 +246,11 @@ impl<'a> Parser<'a> {
     }
 
     fn call_params(&mut self) -> CallParams {
-        if let Some((_, Token::Symbol(Symbol::CloseParen))) = self.tokens.peek() {
+        if let Token::Symbol(Symbol::CloseParen) = self.tokens.peek().unwrap() {
             CallParams(vec![])
         } else {
             let mut params = vec![self.expression(None)];
-            while let Some((_, Token::Symbol(Symbol::Comma))) = self.tokens.peek() {
+            while let Token::Symbol(Symbol::Comma) = self.tokens.peek().unwrap() {
                 self.tokens.next();
                 params.push(self.expression(None))
             }
@@ -280,11 +260,11 @@ impl<'a> Parser<'a> {
 
     fn formal_parameter_list(&mut self) -> FormalParameterList {
         let mut list = vec![];
-        if let Some((_, Token::Identifier(_))) = self.tokens.peek() {
+        if let Token::Identifier(_) = self.tokens.peek().unwrap() {
             loop {
                 list.push(self.formal_parameter());
-                match self.tokens.peek() {
-                    Some((_, Token::Symbol(Symbol::SemiColon))) => self.tokens.advance(),
+                match self.tokens.peek().unwrap() {
+                    Token::Symbol(Symbol::SemiColon) => self.tokens.advance(),
                     _ => break,
                 };
             }
@@ -296,52 +276,49 @@ impl<'a> Parser<'a> {
     fn formal_parameter(&mut self) -> FormalParameter {
         let mut idents = vec![];
 
-        match self.tokens.next() {
-            Some((_, Token::Identifier(id))) => idents.push(id),
-            t => unimplemented!("{:#?}", t),
+        match self.tokens.next().unwrap() {
+            Token::Identifier(id) => idents.push(id),
+            t => panic!("{:#?}", t),
         };
 
-        while let Some((_, Token::Symbol(Symbol::Comma))) = self.tokens.peek() {
+        while let Token::Symbol(Symbol::Comma) = self.tokens.peek().unwrap() {
             self.tokens.next();
-            match self.tokens.next() {
-                Some((_, Token::Identifier(id))) => idents.push(id),
-                t => unimplemented!("{:#?}", t),
+            match self.tokens.next().unwrap() {
+                Token::Identifier(id) => idents.push(id),
+                t => panic!("{:#?}", t),
             }
         }
 
-        let ty = match self.tokens.next() {
-            Some((_, Token::Symbol(Symbol::Colon))) => self.ty(),
-            t => unimplemented!("{:#?}", t),
+        let ty = match self.tokens.next().unwrap() {
+            Token::Symbol(Symbol::Colon) => self.ty(),
+            t => panic!("{:#?}", t),
         };
 
         FormalParameter(idents, ty)
     }
 
     fn assignment_statement(&mut self) -> Assignment {
-        match (self.variable(), self.tokens.next()) {
-            (var, Some((_, Token::Symbol(Symbol::Assign)))) => {
-                match (self.expression(None), self.tokens.next()) {
-                    (expr, Some((_, Token::Symbol(Symbol::SemiColon)))) => Assignment(var, expr),
-                    t => unimplemented!("expected ; after {:#?}", t),
+        match (self.variable(), self.tokens.next().unwrap()) {
+            (var, Token::Symbol(Symbol::Assign)) => {
+                match (self.expression(None), self.tokens.next().unwrap()) {
+                    (expr, Token::Symbol(Symbol::SemiColon)) => Assignment(var, expr),
+                    t => panic!("expected ; after {:#?}", t),
                 }
             }
-            t => unimplemented!("expected = after {:#?}", t),
+            t => panic!("expected = after {:#?}", t),
         }
     }
 
     fn expression(&mut self, p: Option<u32>) -> Expression {
         let p = p.unwrap_or(0);
 
-        let token = match self.tokens.next() {
-            Some((_, token)) => token,
-            None => unimplemented!("unexpected eof"), // EOF
-        };
+        let token = self.tokens.next().unwrap();
 
         let parser = self.prefix_parser(&token).expect("prefix parser");
         let mut lhs = parser.parse(self);
 
         while p < self.next_precedence() {
-            let (_, token) = self.tokens.next().expect("next token");
+            let token = self.tokens.next().expect("next token");
             let parser = self.infix_parser(&token).expect("infix parser");
             lhs = parser.parse(self, lhs);
         }
@@ -350,72 +327,72 @@ impl<'a> Parser<'a> {
     }
 
     fn variable(&mut self) -> Variable {
-        match self.tokens.next() {
-            Some((_, Token::Identifier(id))) => Variable(id),
-            Some((span, token)) => expected(span, Token::Unknown, token),
-            t => unimplemented!("{:#?}", t), // EOF
+        match self.tokens.next().unwrap() {
+            Token::Identifier(id) => Variable(id),
+            token => panic!("{:#?}", token),
         }
     }
 
     fn variable_expr(&mut self) -> Variable {
-        match self.tokens.current() {
-            Some((_, Token::Identifier(id))) => Variable(id.clone()),
-            Some((span, token)) => expected(*span, Token::Unknown, token.clone()),
-            t => unimplemented!("{:#?}", t), // EOF
+        match self.tokens.current().unwrap() {
+            Token::Identifier(id) => Variable(id.clone()),
+            token => panic!("{:#?}", token),
         }
     }
 
     fn unary_op(&mut self) -> UnaryExpression {
-        let op = match self.tokens.current() {
-            Some((_, Token::Symbol(Symbol::Plus))) => UnaryOperator::Plus,
-            Some((_, Token::Symbol(Symbol::Minus))) => UnaryOperator::Minus,
-            Some((_, Token::Reserved(Reserved::Not))) => UnaryOperator::Not,
-            t => unimplemented!("{:#?}", t),
+        let op = match self.tokens.current().unwrap() {
+            Token::Symbol(Symbol::Plus) => UnaryOperator::Plus,
+            Token::Symbol(Symbol::Minus) => UnaryOperator::Minus,
+            Token::Reserved(Reserved::Not) => UnaryOperator::Not,
+            t => panic!("{:#?}", t),
         };
         UnaryExpression(op, self.expression(None))
     }
 
     fn binary_op(&mut self, expr: Expression) -> BinaryExpression {
-        let op = match self.tokens.current() {
-            Some((_, Token::Symbol(Symbol::Plus))) => BinaryOperator::Plus,
-            Some((_, Token::Symbol(Symbol::Minus))) => BinaryOperator::Minus,
-            Some((_, Token::Symbol(Symbol::Mul))) => BinaryOperator::Mul,
-            Some((_, Token::Symbol(Symbol::Div))) => BinaryOperator::Div,
+        let op = match self.tokens.current().unwrap() {
+            Token::Symbol(Symbol::Plus) => BinaryOperator::Plus,
+            Token::Symbol(Symbol::Minus) => BinaryOperator::Minus,
+            Token::Symbol(Symbol::Mul) => BinaryOperator::Mul,
+            Token::Symbol(Symbol::Div) => BinaryOperator::Div,
 
-            Some((_, Token::Reserved(Reserved::And))) => BinaryOperator::And,
-            Some((_, Token::Reserved(Reserved::Or))) => BinaryOperator::Or,
-            Some((_, Token::Symbol(Symbol::LessThan))) => BinaryOperator::LessThan,
-            Some((_, Token::Symbol(Symbol::GreaterThan))) => BinaryOperator::GreaterThan,
-            Some((_, Token::Symbol(Symbol::LessThanEqual))) => BinaryOperator::LessThanEqual,
-            Some((_, Token::Symbol(Symbol::GreaterThanEqual))) => BinaryOperator::GreaterThanEqual,
-            Some((_, Token::Symbol(Symbol::Equal))) => BinaryOperator::Equal,
-            Some((_, Token::Symbol(Symbol::NotEqual))) => BinaryOperator::NotEqual,
+            Token::Reserved(Reserved::And) => BinaryOperator::And,
+            Token::Reserved(Reserved::Or) => BinaryOperator::Or,
+            Token::Symbol(Symbol::LessThan) => BinaryOperator::LessThan,
+            Token::Symbol(Symbol::GreaterThan) => BinaryOperator::GreaterThan,
+            Token::Symbol(Symbol::LessThanEqual) => BinaryOperator::LessThanEqual,
+            Token::Symbol(Symbol::GreaterThanEqual) => BinaryOperator::GreaterThanEqual,
+            Token::Symbol(Symbol::Equal) => BinaryOperator::Equal,
+            Token::Symbol(Symbol::NotEqual) => BinaryOperator::NotEqual,
 
-            t => unimplemented!("{:#?}", t),
+            t => panic!("{:#?}", t),
         };
         BinaryExpression(expr, op, self.expression(None))
     }
 
     fn literal(&mut self) -> Literal {
-        let t = self.tokens.current();
+        let t = self.tokens.current().unwrap();
         match t {
-            Some((_, Token::Number(n))) => Literal::Integer(*n),
-            Some((_, Token::String(s))) => Literal::String(s.clone()),
-            t => unimplemented!("{:#?}", t),
+            Token::Number(n) => Literal::Integer(*n),
+            Token::String(s) => Literal::String(s.clone()),
+            t => panic!("{:#?}", t),
         }
     }
 
     fn ty(&mut self) -> crate::ast::Type {
-        match self.tokens.next() {
-            Some((_, Token::Type(crate::tokens::Type::Integer))) => crate::ast::Type::Integer, // this isn't right
-            Some((_, Token::Type(crate::tokens::Type::String))) => crate::ast::Type::String,
-            t => unimplemented!("{:#?}", t),
+        match self.tokens.next().unwrap() {
+            Token::Type(crate::tokens::Type::Integer) => crate::ast::Type::Integer,
+            Token::Type(crate::tokens::Type::String) => crate::ast::Type::String,
+            t => panic!("{:#?}", t),
         }
     }
 
-    fn consume(&mut self, tok: Token) -> bool {
-        match self.tokens.peek() {
-            Some((_, t)) if *t == tok => {
+    fn consume(&mut self, tok: impl Into<Token>) -> bool {
+        let tok = tok.into();
+
+        match self.tokens.peek().unwrap() {
+            t if *t == tok => {
                 self.tokens.advance();
                 true
             }
@@ -461,27 +438,13 @@ impl<'a> Parser<'a> {
     }
 
     fn next_precedence(&mut self) -> u32 {
-        match self.tokens.peek() {
-            Some((_, token)) => {
-                let token = token.clone();
-                match self.infix_parser(&token) {
-                    Some(pp) => pp.precedence(),
-                    _ => 0,
-                }
-            }
+        let token = self.tokens.peek().unwrap();
+        let token = token.clone();
+        match self.infix_parser(&token) {
+            Some(pp) => pp.precedence(),
             _ => 0,
         }
     }
-
-    // fn expect(&mut self, token: Token) {
-    //     let next = self.tokens.peek();
-    //     eprintln!("next: {:?} (expecting: {:?}", next.map(|(_, t)| t), token);
-    //     match next {
-    //         Some((_, ref tok)) if *tok == token => self.tokens.advance(),
-    //         Some((span, tok)) => expected(*span, token, tok.clone()),
-    //         t => unimplemented!("{:#?}", t), // EOF
-    //     }
-    // }
 }
 
 // Operator precedences shall be according to four classes of operators
@@ -545,69 +508,4 @@ enum Precendence {
     Relative = 3,
     UnaryBool = 2,
     BinaryBool = 1,
-}
-
-fn expected(span: Span, token: Token, got: Token) -> ! {
-    eprintln!("{} expected: {:?} got {:?}", span, token, got);
-    panic!();
-}
-
-use std::borrow::Cow;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-const IDENTATION: usize = 4;
-static TRACE_DEPTH: AtomicUsize = AtomicUsize::new(0);
-
-fn indent() {
-    let _ = TRACE_DEPTH.fetch_add(IDENTATION, Ordering::Relaxed);
-}
-
-fn deindent() {
-    let _ = TRACE_DEPTH.fetch_sub(IDENTATION, Ordering::Relaxed);
-}
-
-fn reset_level() {
-    TRACE_DEPTH.store(0, Ordering::Relaxed);
-}
-
-fn level() -> usize {
-    TRACE_DEPTH.load(Ordering::Relaxed)
-}
-
-// for co-recursive shit
-// macro_rules! tracer {
-//     ($e:expr, $($args:tt)*) => {{
-//         Tracer::new($e, format!($($args)*))
-//     }};
-// }
-
-pub struct Tracer<'a> {
-    label: Cow<'a, str>,
-    pad: Cow<'a, str>,
-}
-
-impl<'a> Tracer<'a> {
-    pub fn new(label: impl Into<String>, data: impl AsRef<str>) -> Self {
-        let pad = ::std::iter::repeat(".")
-            .take(level())
-            .collect::<String>()
-            .into();
-
-        let lede = format!("{}>", pad);
-        let label = label.into();
-        eprintln!("{}{}: {}", lede, label, data.as_ref());
-        indent();
-        Tracer {
-            label: label.into(),
-            pad,
-        }
-    }
-}
-
-impl<'a> Drop for Tracer<'a> {
-    fn drop(&mut self) {
-        deindent();
-        let lede = format!("<{}", self.pad);
-        eprintln!("{}{}", lede, self.label)
-    }
 }

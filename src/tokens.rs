@@ -43,7 +43,7 @@ impl Token {
 pub enum Type {
     Integer,
     String,
-    Bool,
+    Boolean,
     // Real, Unit
 }
 
@@ -223,11 +223,6 @@ impl fmt::Display for Reserved {
     }
 }
 
-pub struct Tokens<'a> {
-    data: Vec<(Span<'a>, Token)>,
-    pos: usize,
-}
-
 impl<'a> fmt::Debug for Tokens<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Tokens")
@@ -235,6 +230,11 @@ impl<'a> fmt::Debug for Tokens<'a> {
             .field("tokens", &self.data)
             .finish()
     }
+}
+
+pub struct Tokens<'a> {
+    data: Vec<(Span<'a>, Token)>,
+    pos: usize,
 }
 
 impl<'a> Tokens<'a> {
@@ -264,27 +264,27 @@ impl<'a> Tokens<'a> {
         self.pos += 1;
     }
 
-    pub fn current(&self) -> Option<&(Span<'a>, Token)> {
-        self.data.get(self.pos - 1)
+    pub fn current(&self) -> Option<&Token> {
+        self.data.get(self.pos - 1).map(|(_, t)| t)
     }
 
-    pub fn peek(&mut self) -> Option<&(Span<'a>, Token)> {
-        self.data.get(self.pos)
+    pub fn peek(&mut self) -> Option<&Token> {
+        self.data.get(self.pos).map(|(_, t)| t)
     }
 
-    pub fn peek_ahead(&mut self, pos: usize) -> Option<&(Span<'a>, Token)> {
-        self.data.get(self.pos + pos)
+    pub fn peek_ahead(&mut self, pos: usize) -> Option<&Token> {
+        self.data.get(self.pos + pos).map(|(_, t)| t)
     }
 }
 
 impl<'a> Iterator for Tokens<'a> {
-    type Item = (Span<'a>, Token);
+    type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
         if self.data.is_empty() || self.data.len() == self.pos() {
             return None;
         }
 
-        let n = self.data.get(self.pos()).cloned();
+        let n = self.data.get(self.pos()).cloned().map(|(_, t)| t);
         self.pos += 1;
         n
     }
@@ -329,7 +329,7 @@ impl<'a> fmt::Display for Tokens<'a> {
             }
         }
 
-        for (span, tok) in self.data.iter() {
+        for (span, tok) in &self.data {
             let len = span_width - span.total_width();
             let tlen = token_width - tok.width();
             write!(
@@ -337,7 +337,7 @@ impl<'a> fmt::Display for Tokens<'a> {
                 "{}",
                 format_args!("{}{: <width$}  ", span, "", width = len)
             )?;
-            writeln!(f, "{}", format_token(tok, tlen))?;
+            writeln!(f, "{}", format_token(&tok, tlen))?;
         }
 
         Ok(())

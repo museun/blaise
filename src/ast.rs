@@ -59,7 +59,7 @@ pub struct BinaryExpression(pub Expression, pub BinaryOperator, pub Expression);
 pub enum Literal {
     Integer(i32),
     String(String),
-    // Bool(bool),
+    Boolean(bool),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -107,8 +107,18 @@ pub struct Variable(pub String);
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Integer,
-    // Real,
     String,
-    // Boolean,
+    Boolean,
     Unit,
+    // Real,
+}
+
+impl From<crate::tokens::Type> for Type {
+    fn from(ty: crate::tokens::Type) -> Self {
+        match ty {
+            crate::tokens::Type::Integer => crate::ast::Type::Integer,
+            crate::tokens::Type::String => crate::ast::Type::String,
+            crate::tokens::Type::Boolean => crate::ast::Type::Boolean,
+        }
+    }
 }

@@ -11,7 +11,7 @@ impl Lexer {
             comment_lexer,
             number_lexer,
             string_lexer,
-            special_lexer,
+            symbol_lexer,
             type_lexer,
             identifier_lexer,
             unknown_lexer,
@@ -100,7 +100,7 @@ fn whitespace_lexer(stream: &mut Stream) -> State {
     State::Consume(skip.checked_sub(1).or_else(|| Some(0)).unwrap())
 }
 
-fn special_lexer(stream: &mut Stream) -> State {
+fn symbol_lexer(stream: &mut Stream) -> State {
     fn is_symbol(c: char) -> bool {
         match c as u8 {
             b'\''...b'/' | b':'...b'>' | b'@' | b'['...b'^' | b'{'...b'}' => true,
@@ -233,7 +233,7 @@ fn type_lexer(stream: &mut Stream) -> State {
     const TYPES: &[(&str, tokens::Type); 3] = &[
         ("integer", tokens::Type::Integer),
         ("string", tokens::Type::String),
-        ("bool", tokens::Type::Bool),
+        ("bool", tokens::Type::Boolean),
     ];
     let c = stream.current();
     if !c.is_ascii_alphabetic() {
