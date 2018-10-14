@@ -42,5 +42,5 @@ fn main() {
     eprintln!("{:#?}", program);
 
     let mut interpreter = Interpreter::new();
-    interpreter.evaluate(&program);
+    interpreter.evaluate(program);
 }
