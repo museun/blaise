@@ -50,8 +50,8 @@ impl Interpreter {
 
     pub fn evaluate(&mut self, program: Program) {
         if let Err(err) = self.visit(program) {
-            eprintln!("{}", err);
-            eprintln!("{:#?}", self.scope);
+            error!("{}", err);
+            error!("{:#?}", self.scope);
             ::std::process::exit(1)
         }
     }
@@ -237,10 +237,10 @@ impl Interpreter {
 
     fn visit_variable(&mut self, node: Variable) -> Result<Object, Error> {
         let Variable(name) = node;
-        match self.scope()?.get(&name) {
-            Some(object) => Ok(object.clone()),
-            None => Err(Error::UnknownVariable(name)),
-        }
+        self.scope()?
+            .get(&name)
+            .cloned()
+            .ok_or_else(|| Error::UnknownVariable(name))
     }
 
     fn init(&mut self) -> Result<(), Error> {
@@ -274,9 +274,16 @@ impl Interpreter {
 pub enum Object {
     Unit,
     Primitive(Primitive),
-    Procedure(String, Vec<String>, crate::ast::Block),
-    Function(String, Vec<String>, crate::ast::Block, crate::ast::Type),
+    Procedure(String, Vec<String>, Block),
+    Function(String, Vec<String>, Block, Type),
     Builtin(Builtin),
+}
+
+#[derive(Debug, Clone)]
+pub enum Builtin {
+    Write(fn(Object) -> Result<Object, Error>),
+    WriteLn(fn(Object) -> Result<Object, Error>),
+    ReadLn(fn() -> Result<Object, Error>),
 }
 
 #[derive(Debug, Clone)]
@@ -284,12 +291,6 @@ pub enum Primitive {
     Integer(i32),
     String(String),
     Boolean(bool),
-}
-#[derive(Debug, Clone)]
-pub enum Builtin {
-    Write(fn(Object) -> Result<Object, Error>),
-    WriteLn(fn(Object) -> Result<Object, Error>),
-    ReadLn(fn() -> Result<Object, Error>),
 }
 
 impl Object {
@@ -330,175 +331,144 @@ impl Object {
         }
     }
 
+    fn error<T>(left: &Self, right: &Self, op: OperatorError) -> Result<T, Error> {
+        Err(Error::InvalidOperation(
+            op,
+            left.clone(),
+            Some(right.clone()),
+        ))
+    }
+
     // binary
     pub fn add(&self, other: &Self) -> Result<Self, Error> {
+        use self::{Object::Primitive, Primitive::*};
+
         match (self, other) {
-            (
-                Object::Primitive(Primitive::Integer(left)),
-                Object::Primitive(Primitive::Integer(right)),
-            ) => Ok(Object::Primitive(Primitive::Integer(left + right))),
-            (
-                Object::Primitive(Primitive::String(left)),
-                Object::Primitive(Primitive::String(right)),
-            ) => Ok(Object::Primitive(Primitive::String(format!(
-                "{}{}",
-                left, right
-            )))),
-            (left, right) => Err(Error::InvalidOperation(
-                OperatorError::Add,
-                left.clone(),
-                Some(right.clone()),
-            )),
+            (Primitive(Integer(left)), Primitive(Integer(right))) => {
+                Ok(Primitive(Integer(left + right)))
+            }
+            (Primitive(String(left)), Primitive(String(right))) => {
+                Ok(Primitive(String(format!("{}{}", left, right))))
+            }
+            (left, right) => Self::error(left, right, OperatorError::Add),
         }
     }
+
     pub fn subtract(&self, other: &Self) -> Result<Self, Error> {
+        use self::{Object::Primitive, Primitive::*};
+
         match (self, other) {
-            (
-                Object::Primitive(Primitive::Integer(left)),
-                Object::Primitive(Primitive::Integer(right)),
-            ) => Ok(Object::Primitive(Primitive::Integer(left - right))),
-            (left, right) => Err(Error::InvalidOperation(
-                OperatorError::Sub,
-                left.clone(),
-                Some(right.clone()),
-            )),
+            (Primitive(Integer(left)), Primitive(Integer(right))) => {
+                Ok(Primitive(Integer(left - right)))
+            }
+            (left, right) => Self::error(left, right, OperatorError::Sub),
         }
     }
     pub fn multiply(&self, other: &Self) -> Result<Self, Error> {
+        use self::{Object::Primitive, Primitive::*};
+
         match (self, other) {
-            (
-                Object::Primitive(Primitive::Integer(left)),
-                Object::Primitive(Primitive::Integer(right)),
-            ) => Ok(Object::Primitive(Primitive::Integer(left * right))),
-            (left, right) => Err(Error::InvalidOperation(
-                OperatorError::Mul,
-                left.clone(),
-                Some(right.clone()),
-            )),
+            (Primitive(Integer(left)), Primitive(Integer(right))) => {
+                Ok(Primitive(Integer(left * right)))
+            }
+            (left, right) => Self::error(left, right, OperatorError::Mul),
         }
     }
     pub fn int_divide(&self, other: &Self) -> Result<Self, Error> {
+        use self::{Object::Primitive, Primitive::*};
+
         match (self, other) {
-            (
-                Object::Primitive(Primitive::Integer(left)),
-                Object::Primitive(Primitive::Integer(right)),
-            ) => Ok(Object::Primitive(Primitive::Integer(left / right))),
-            (left, right) => Err(Error::InvalidOperation(
-                OperatorError::IntDiv,
-                left.clone(),
-                Some(right.clone()),
-            )),
+            (Primitive(Integer(left)), Primitive(Integer(right))) => {
+                Ok(Primitive(Integer(left / right)))
+            }
+            (left, right) => Self::error(left, right, OperatorError::IntDiv),
         }
     }
 
     pub fn and(&self, other: &Self) -> Result<Self, Error> {
+        use self::{Object::Primitive, Primitive::*};
+
         match (self, other) {
-            (
-                Object::Primitive(Primitive::Boolean(left)),
-                Object::Primitive(Primitive::Boolean(right)),
-            ) => Ok(Object::Primitive(Primitive::Boolean(*left && *right))),
-            (left, right) => Err(Error::InvalidOperation(
-                OperatorError::And,
-                left.clone(),
-                Some(right.clone()),
-            )),
+            (Primitive(Boolean(left)), Primitive(Boolean(right))) => {
+                Ok(Primitive(Boolean(*left && *right)))
+            }
+            (left, right) => Self::error(left, right, OperatorError::And),
         }
     }
     pub fn or(&self, other: &Self) -> Result<Self, Error> {
+        use self::{Object::Primitive, Primitive::*};
+
         match (self, other) {
-            (
-                Object::Primitive(Primitive::Boolean(left)),
-                Object::Primitive(Primitive::Boolean(right)),
-            ) => Ok(Object::Primitive(Primitive::Boolean(*left || *right))),
-            (left, right) => Err(Error::InvalidOperation(
-                OperatorError::Or,
-                left.clone(),
-                Some(right.clone()),
-            )),
+            (Primitive(Boolean(left)), Primitive(Boolean(right))) => {
+                Ok(Primitive(Boolean(*left || *right)))
+            }
+            (left, right) => Self::error(left, right, OperatorError::Or),
         }
     }
     pub fn less_than(&self, other: &Self) -> Result<Self, Error> {
-        match (self, other) {
-            (
-                Object::Primitive(Primitive::Integer(left)),
-                Object::Primitive(Primitive::Integer(right)),
-            ) => Ok(Object::Primitive(Primitive::Boolean(left < right))),
+        use self::{Object::Primitive, Primitive::*};
 
-            (left, right) => Err(Error::InvalidOperation(
-                OperatorError::LessThan,
-                left.clone(),
-                Some(right.clone()),
-            )),
+        match (self, other) {
+            (Primitive(Integer(left)), Primitive(Integer(right))) => {
+                Ok(Primitive(Boolean(left < right)))
+            }
+
+            (left, right) => Self::error(left, right, OperatorError::LessThan),
         }
     }
     pub fn greater_than(&self, other: &Self) -> Result<Self, Error> {
-        match (self, other) {
-            (
-                Object::Primitive(Primitive::Integer(left)),
-                Object::Primitive(Primitive::Integer(right)),
-            ) => Ok(Object::Primitive(Primitive::Boolean(left > right))),
+        use self::{Object::Primitive, Primitive::*};
 
-            (left, right) => Err(Error::InvalidOperation(
-                OperatorError::GreaterThan,
-                left.clone(),
-                Some(right.clone()),
-            )),
+        match (self, other) {
+            (Primitive(Integer(left)), Primitive(Integer(right))) => {
+                Ok(Primitive(Boolean(left > right)))
+            }
+
+            (left, right) => Self::error(left, right, OperatorError::GreaterThan),
         }
     }
     pub fn less_than_equal(&self, other: &Self) -> Result<Self, Error> {
-        match (self, other) {
-            (
-                Object::Primitive(Primitive::Integer(left)),
-                Object::Primitive(Primitive::Integer(right)),
-            ) => Ok(Object::Primitive(Primitive::Boolean(left <= right))),
+        use self::{Object::Primitive, Primitive::*};
 
-            (left, right) => Err(Error::InvalidOperation(
-                OperatorError::LessThanEqual,
-                left.clone(),
-                Some(right.clone()),
-            )),
+        match (self, other) {
+            (Primitive(Integer(left)), Primitive(Integer(right))) => {
+                Ok(Primitive(Boolean(left <= right)))
+            }
+
+            (left, right) => Self::error(left, right, OperatorError::LessThanEqual),
         }
     }
     pub fn greater_than_equal(&self, other: &Self) -> Result<Self, Error> {
-        match (self, other) {
-            (
-                Object::Primitive(Primitive::Boolean(left)),
-                Object::Primitive(Primitive::Boolean(right)),
-            ) => Ok(Object::Primitive(Primitive::Boolean(left >= right))),
+        use self::{Object::Primitive, Primitive::*};
 
-            (left, right) => Err(Error::InvalidOperation(
-                OperatorError::GreaterThanEqual,
-                left.clone(),
-                Some(right.clone()),
-            )),
+        match (self, other) {
+            (Primitive(Boolean(left)), Primitive(Boolean(right))) => {
+                Ok(Primitive(Boolean(left >= right)))
+            }
+
+            (left, right) => Self::error(left, right, OperatorError::GreaterThanEqual),
         }
     }
     pub fn equal(&self, other: &Self) -> Result<Self, Error> {
-        match (self, other) {
-            (
-                Object::Primitive(Primitive::Integer(left)),
-                Object::Primitive(Primitive::Integer(right)),
-            ) => Ok(Object::Primitive(Primitive::Boolean(left == right))),
+        use self::{Object::Primitive, Primitive::*};
 
-            (left, right) => Err(Error::InvalidOperation(
-                OperatorError::Equal,
-                left.clone(),
-                Some(right.clone()),
-            )),
+        match (self, other) {
+            (Primitive(Integer(left)), Primitive(Integer(right))) => {
+                Ok(Primitive(Boolean(left == right)))
+            }
+
+            (left, right) => Self::error(left, right, OperatorError::Equal),
         }
     }
     pub fn not_equal(&self, other: &Self) -> Result<Self, Error> {
-        match (self, other) {
-            (
-                Object::Primitive(Primitive::Integer(left)),
-                Object::Primitive(Primitive::Integer(right)),
-            ) => Ok(Object::Primitive(Primitive::Boolean(left != right))),
+        use self::{Object::Primitive, Primitive::*};
 
-            (left, right) => Err(Error::InvalidOperation(
-                OperatorError::NotEqual,
-                left.clone(),
-                Some(right.clone()),
-            )),
+        match (self, other) {
+            (Primitive(Integer(left)), Primitive(Integer(right))) => {
+                Ok(Primitive(Boolean(left != right)))
+            }
+
+            (left, right) => Self::error(left, right, OperatorError::NotEqual),
         }
     }
 }
@@ -554,16 +524,17 @@ impl Scope {
 
 pub(crate) mod builtin {
     use super::*;
+    use super::{Object::Primitive, Primitive::*};
+    use std::io::prelude::*;
+    use std::io::{stdin, stdout};
+
     // builtins
     // TODO use a io::Read and io::Write as a backend
     pub(crate) fn write(data: Object) -> Result<Object, Error> {
-        use std::io::prelude::*;
-        use std::io::stdout;
-
         match data {
-            Object::Primitive(Primitive::Integer(n)) => print!("{}", n),
-            Object::Primitive(Primitive::String(s)) => print!("{}", s),
-            Object::Primitive(Primitive::Boolean(b)) => print!("{}", b),
+            Primitive(Integer(n)) => print!("{}", n),
+            Primitive(String(s)) => print!("{}", s),
+            Primitive(Boolean(b)) => print!("{}", b),
             _ => return Err(Error::InvalidArgument),
         }
 
@@ -572,13 +543,10 @@ pub(crate) mod builtin {
     }
 
     pub(crate) fn writeln(data: Object) -> Result<Object, Error> {
-        use std::io::prelude::*;
-        use std::io::stdout;
-
         match data {
-            Object::Primitive(Primitive::Integer(n)) => println!("{}", n),
-            Object::Primitive(Primitive::String(s)) => println!("{}", s),
-            Object::Primitive(Primitive::Boolean(b)) => println!("{}", b),
+            Primitive(Integer(n)) => println!("{}", n),
+            Primitive(String(s)) => println!("{}", s),
+            Primitive(Boolean(b)) => println!("{}", b),
             _ => return Err(Error::InvalidArgument),
         }
 
@@ -587,16 +555,13 @@ pub(crate) mod builtin {
     }
 
     pub(crate) fn readln() -> Result<Object, Error> {
-        use std::io::prelude::*;
-        use std::io::stdin;
-
-        let mut buf = String::new();
+        let mut buf = ::std::string::String::new();
         stdin()
             .read_line(&mut buf)
             .map_err(|e| {
                 debug!("cannot read stdin: {}", e);
                 Error::CannotRead
             })
-            .and_then(|_| Ok(Object::Primitive(Primitive::String(buf))))
+            .and_then(|_| Ok(Primitive(String(buf))))
     }
 }
