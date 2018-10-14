@@ -211,10 +211,10 @@ impl Parser {
 
     fn compound_statement(&mut self) -> Result<Compound> {
         // begin stmt1; stmt2; end
-        self.expect_token("begin").unwrap();
+        self.expect_token("begin")?;
         let mut statements = vec![];
         while !self.consume("end") {
-            statements.push(self.statement().unwrap())
+            statements.push(self.statement()?)
         }
         Ok(Compound(statements))
     }
@@ -265,6 +265,7 @@ impl Parser {
     }
 
     fn if_statement(&mut self) -> Result<IfStatement> {
+        trace!("entering if");
         // if_stmt ::= IF expr THEN comp_stmt (ELSE (if_stmt | comp_stmt))?
         self.expect_token("if")?;
         let expr = self.expression(None)?;
@@ -335,12 +336,22 @@ impl Parser {
             .ok_or_else(|| self.error::<(), _>(token).unwrap_err())?;
         let mut lhs = parser.parse(self)?;
 
-        while p < self.next_precedence() {
-            let token = self.tokens.peek();
-            let parser = self.infix_parser(&token).expect("infix parser");
-            lhs = parser.parse(self, lhs)?;
-        }
+        debug!("lhs ({}): {:#?} ", p, lhs);
+        loop {
+            let np = self.next_precedence();
+            if p == np {
+                break;
+            }
 
+            info!("lhs ({}): {:#?}", np, lhs);
+            let token = self.tokens.peek();
+            let parser = self
+                .infix_parser(&token)
+                .ok_or_else(|| self.error::<(), _>(token).unwrap_err())?;
+            lhs = parser.parse(self, lhs)?;
+            debug!("new lhs: {:?}", lhs);
+        }
+        debug!("lhs -: {:#?}", lhs);
         Ok(lhs)
     }
 
@@ -374,7 +385,7 @@ impl Parser {
             Token::{Reserved, Symbol},
         };
 
-        let t = self.tokens.current();
+        let t = self.tokens.next_token();
         let op = match t {
             Symbol(s) => s
                 .as_binary_op()
@@ -435,7 +446,7 @@ impl Parser {
 
         match token {
             Symbol(Plus) | Symbol(Minus) => Some(Op(Addition as u32)),
-            Symbol(Mul) | Symbol(Symbol::Div) => Some(Op(Multiplication as u32)),
+            Symbol(Symbol::Mul) | Symbol(Symbol::Div) => Some(Op(Multiplication as u32)),
             Reserved(And) | Reserved(Or) => Some(Op(BinaryBool as u32)),
 
             Symbol(LessThan)
@@ -451,7 +462,8 @@ impl Parser {
     }
 
     fn next_precedence(&mut self) -> u32 {
-        let token = self.tokens.peek().clone();
+        let token = self.tokens.peek();
+        debug!("next prec: {:#?}", token);
         match self.infix_parser(&token) {
             Some(pp) => pp.precedence(),
             _ => 0,
@@ -480,12 +492,18 @@ impl Parser {
 
     fn expect<E, T, F>(&mut self, mut f: F, toks: impl AsRef<[T]>) -> Result<E>
     where
-        T: Into<Token> + Clone,
+        T: Into<Token> + Clone + fmt::Debug,
         F: FnMut(&mut Parser) -> Result<E>,
     {
-        let res = f(self).unwrap();
+        let res = f(self).map_err(|e| {
+            error!("expected: {:#?}", toks.as_ref());
+            e
+        })?;
         for tok in toks.as_ref() {
-            self.expect_token(tok.clone()).unwrap();
+            self.expect_token(tok.clone()).map_err(|e| {
+                error!("expected: {:#?}", tok);
+                e
+            })?;
         }
         Ok(res)
     }
