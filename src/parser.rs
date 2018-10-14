@@ -235,7 +235,7 @@ impl Parser {
         Ok(FunctionCall(id, params))
     }
 
-    fn function_call_expr(&mut self, left: &Expression) -> Result<FunctionCall> {
+    fn function_call_expr(&mut self, left: Expression) -> Result<FunctionCall> {
         let name = match left {
             Expression::Variable(name) => name,
             e => self.error("expression isn't a variable")?,
@@ -318,8 +318,11 @@ impl Parser {
         let parser = self
             .prefix_parser(&token)
             .ok_or_else(|| self.error::<(), _>(token).unwrap_err())?;
-        let mut lhs = parser.parse(self)?;
 
+        use std::collections::VecDeque;
+        // let mut stack = VecDeque::new();
+        let mut lhs = parser.parse(self)?;
+        trace!("lhs: {:?}", lhs);
         while p < self.next_precedence() {
             let token = self.tokens.next_token();
             let parser = self
@@ -376,8 +379,6 @@ impl Parser {
             t => self.unexpected(t)?,
         };
 
-        // self.tokens.advance(); //?
-
         let p = self.next_precedence();
         warn!("prec: {}", p);
         Ok(BinaryExpression(expr, op, self.expression(Some(p))?))
@@ -423,7 +424,8 @@ impl Parser {
 
         let op = match token {
             Symbol(Plus) | Symbol(Minus) => Some(Op(BinaryAdd)),
-            Symbol(Symbol::Mul) | Symbol(Symbol::Div) => Some(Op(BinaryMul)),
+            Symbol(Symbol::Mul) => Some(Op(BinaryMul)),
+            Reserved(Reserved::Div) => Some(Op(BinaryMul)),
             Reserved(And) | Reserved(Or) => Some(Op(BinaryBool)),
 
             Symbol(LessThan)
@@ -568,6 +570,7 @@ impl BinaryOp for Reserved {
         Some(match self {
             Reserved::And => BinaryOperator::And,
             Reserved::Or => BinaryOperator::Or,
+            Reserved::Div => BinaryOperator::Div,
             _ => return None,
         })
     }
@@ -615,8 +618,9 @@ impl InfixParser {
     pub fn parse(&self, parser: &mut Parser, left: Expression) -> Result<Expression> {
         Ok(match self {
             InfixParser::BinaryOperator(_) => Expression::Binary(Box::new(parser.binary_op(left)?)),
+
             InfixParser::FunctionCall(_) => {
-                Expression::FunctionCall(parser.function_call_expr(&left)?)
+                Expression::FunctionCall(parser.function_call_expr(left)?)
             }
         })
     }
