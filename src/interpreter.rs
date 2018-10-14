@@ -57,16 +57,18 @@ impl Interpreter {
     }
 
     fn visit(&mut self, node: Program) -> Result<(), Error> {
-        self.enter(((node.0).0).clone());
+        let Program(Variable(name), block) = node;
+        self.enter(name);
         self.init()?;
-        info!("result: {:#?}", self.visit_block(node.1)?);
+        info!("result: {:#?}", self.visit_block(block)?);
         self.leave();
         Ok(())
     }
 
     fn visit_block(&mut self, node: Block) -> Result<Object, Error> {
-        self.visit_declarations(&node.0)?;
-        self.visit_compound(node.1)
+        let Block(decls, comp) = node;
+        self.visit_declarations(&decls)?;
+        self.visit_compound(comp)
     }
 
     fn visit_declarations(&mut self, node: &[Declaration]) -> Result<(), Error> {
@@ -108,8 +110,9 @@ impl Interpreter {
         &mut self,
         node: FormalParameterList,
     ) -> Result<Vec<String>, Error> {
+        let FormalParameterList(list) = node;
         let mut names = vec![];
-        for param in node.0 {
+        for param in list {
             let mut new = self.visit_formal_parameter(param)?;
             names.append(&mut new);
         }
@@ -122,8 +125,9 @@ impl Interpreter {
     }
 
     fn visit_compound(&mut self, node: Compound) -> Result<Object, Error> {
+        let Compound(list) = node;
         let mut obj = Object::Unit;
-        for statement in node.0 {
+        for statement in list {
             obj = self.visit_statement(statement)?;
         }
         Ok(obj)
@@ -177,8 +181,9 @@ impl Interpreter {
     }
 
     fn visit_assignment(&mut self, node: Assignment) -> Result<Object, Error> {
-        let val = self.visit_expression(node.1)?;
-        self.scope()?.set((node.0).0.clone(), val.clone());
+        let Assignment(Variable(name), expr) = node;
+        let val = self.visit_expression(expr)?;
+        self.scope()?.set(name, val.clone());
         Ok(val)
     }
 
@@ -231,9 +236,10 @@ impl Interpreter {
     }
 
     fn visit_variable(&mut self, node: Variable) -> Result<Object, Error> {
-        match self.scope()?.get(&node.0) {
+        let Variable(name) = node;
+        match self.scope()?.get(&name) {
             Some(object) => Ok(object.clone()),
-            None => Err(Error::UnknownVariable(node.0.clone())),
+            None => Err(Error::UnknownVariable(name)),
         }
     }
 
@@ -256,17 +262,11 @@ impl Interpreter {
     }
 
     fn leave(&mut self) {
-        self.scope = match self.scope.take() {
-            Some(scope) => scope.parent(),
-            None => None,
-        }
+        self.scope = self.scope.take().and_then(|s| s.parent())
     }
 
     fn scope(&mut self) -> Result<&mut Scope, Error> {
-        match self.scope {
-            Some(ref mut scope) => Ok(scope),
-            None => Err(Error::UnknownScope),
-        }
+        self.scope.as_mut().ok_or_else(|| Error::UnknownScope)
     }
 }
 
