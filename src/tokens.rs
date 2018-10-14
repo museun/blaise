@@ -1,5 +1,7 @@
 use super::span::Span;
 use std::fmt;
+use std::io::prelude::*;
+use std::ops::RangeBounds;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
@@ -246,7 +248,7 @@ impl fmt::Display for Reserved {
     }
 }
 
-impl<'a> fmt::Debug for Tokens<'a> {
+impl fmt::Debug for Tokens {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Tokens")
             .field("position", &self.pos)
@@ -255,18 +257,36 @@ impl<'a> fmt::Debug for Tokens<'a> {
     }
 }
 
-pub struct Tokens<'a> {
-    data: Vec<(Span<'a>, Token)>,
+#[derive(Clone)]
+pub struct Tokens {
+    data: Vec<(Span, Token)>,
     pos: usize,
+    source: String,
 }
 
-impl<'a> Tokens<'a> {
-    pub fn new(data: Vec<(Span<'a>, Token)>) -> Self {
-        Self { data, pos: 0 }
+impl Tokens {
+    pub fn new(data: Vec<(Span, Token)>, source: String) -> Self {
+        Self {
+            data,
+            pos: 0,
+            source,
+        }
+    }
+
+    pub fn remaining(&self) -> &[(Span, Token)] {
+        &self.data[self.pos()..]
+    }
+
+    pub fn tokens(&self) -> &[(Span, Token)] {
+        &self.data
+    }
+
+    pub fn source(&self) -> &str {
+        self.source.as_str()
     }
 
     pub fn span(&self) -> &Span {
-        self.span_at(self.pos()).unwrap()
+        self.span_at(self.pos() - 1).expect("a span")
     }
 
     pub fn span_at(&self, pos: usize) -> Option<&Span> {
@@ -295,51 +315,47 @@ impl<'a> Tokens<'a> {
         self.pos += 1;
     }
 
-    pub fn current(&self) -> Option<&Token> {
-        self.data.get(self.pos - 1).map(|(_, t)| t)
+    pub fn current(&self) -> Token {
+        self.data
+            .get(self.pos - 1)
+            .map(|(_, t)| t)
+            .cloned()
+            .expect("not eof")
     }
 
-    pub fn peek(&mut self) -> Option<&Token> {
-        self.data.get(self.pos).map(|(_, t)| t)
-    }
-
-    pub fn peek_ahead(&mut self, pos: usize) -> Option<&Token> {
-        self.data.get(self.pos + pos).map(|(_, t)| t)
-    }
-}
-
-impl<'a> Iterator for Tokens<'a> {
-    type Item = Token;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.data.is_empty() || self.data.len() == self.pos() {
-            return None;
-        }
-
-        let n = self.data.get(self.pos()).cloned().map(|(_, t)| t);
+    pub fn next_token(&mut self) -> Token {
+        let n = self
+            .data
+            .get(self.pos())
+            .cloned()
+            .map(|(_, t)| t)
+            .expect("not eof");
         self.pos += 1;
         n
     }
-}
 
-impl<'a> ExactSizeIterator for Tokens<'a> {}
+    pub fn peek(&mut self) -> Token {
+        self.data
+            .get(self.pos)
+            .map(|(_, t)| t)
+            .cloned()
+            .expect("not eof")
+    }
 
-impl<'a> fmt::Display for Tokens<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use std::cmp::max;
+    pub fn peek_ahead(&mut self, pos: usize) -> Option<Token> {
+        self.data.get(self.pos + pos).map(|(_, t)| t).cloned()
+    }
 
-        let (span_width, token_width) = self
-            .data
-            .iter()
-            .map(|(span, token)| (span.total_width(), token.width()))
-            .fold((0, 0), |mut a, (l, r)| {
-                a.0 = max(a.0, l);
-                a.1 = max(a.1, r);
-                a
-            });
+    pub fn dump(&self, s: &[(Span, Token)]) -> String {
+        use std::io::Cursor;
+        let mut buf = Cursor::new(Vec::<u8>::new());
+        self.dump_to(&mut buf, s);
+        String::from_utf8(buf.into_inner()).expect(":valid utf-8")
+    }
 
+    pub fn dump_to<W: Write>(&self, mut w: W, s: &[(Span, Token)]) {
         fn format_token(tok: &Token, width: usize) -> String {
             use self::Token::*;
-
             match tok {
                 Reserved(s) => format!("{} {: <width$}: Symbol", s, "", width = width),
                 Symbol(s) => format!("{} {: <width$}: Symbol", s, "", width = width),
@@ -360,18 +376,48 @@ impl<'a> fmt::Display for Tokens<'a> {
             }
         }
 
-        for (span, tok) in &self.data {
+        use std::cmp::max;
+        let (span_width, token_width) = s
+            .iter()
+            .map(|(span, token)| (span.total_width(), token.width()))
+            .fold((0, 0), |mut a, (l, r)| {
+                a.0 = max(a.0, l);
+                a.1 = max(a.1, r);
+                a
+            });
+
+        for (span, tok) in s {
             let len = span_width - span.total_width();
             let tlen = token_width - tok.width();
             write!(
-                f,
+                w,
                 "{}",
                 format_args!("{}{: <width$}  ", span, "", width = len)
-            )?;
-            writeln!(f, "{}", format_token(&tok, tlen))?;
+            )
+            .expect("write");
+            writeln!(w, "{}", format_token(&tok, tlen)).expect("writeln");
+        }
+    }
+}
+
+impl Iterator for Tokens {
+    type Item = Token;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.data.is_empty() || self.data.len() == self.pos() {
+            return None;
         }
 
-        Ok(())
+        let n = self.data.get(self.pos()).cloned().map(|(_, t)| t);
+        self.pos += 1;
+        n
+    }
+}
+
+impl ExactSizeIterator for Tokens {}
+
+impl fmt::Display for Tokens {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "{}", self.dump(&self.data))
     }
 }
 

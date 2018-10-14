@@ -4,7 +4,7 @@ use super::tokens::{self, Token, Tokens};
 
 pub struct Lexer;
 impl Lexer {
-    pub fn scan<'a>(file: &'a str, input: &str) -> Tokens<'a> {
+    pub fn scan(file: &str, input: &str) -> Tokens {
         let lexers = [
             whitespace_lexer,
             directive_lexer,
@@ -44,11 +44,11 @@ impl Lexer {
                     State::Consume(n) => skip += n,
                     State::Produce(n, Token::Comment(_, end)) => {
                         skip += n;
-                        data.push((span, Token::Comment(row, row + end)))
+                        data.push((span.clone(), Token::Comment(row, row + end)))
                     }
                     State::Produce(n, token) => {
                         skip += n;
-                        data.push((span, token))
+                        data.push((span.clone(), token))
                     }
                 }
                 break 'inner;
@@ -63,7 +63,7 @@ impl Lexer {
         }
 
         data.push((Span::new(file, col, row), Token::EOF));
-        Tokens::new(data)
+        Tokens::new(data, input.into())
     }
 }
 

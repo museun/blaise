@@ -22,11 +22,16 @@ fn main() {
     };
 
     let input = fs::read_to_string(&file).expect("read");
+    eprintln!("{}\n", input);
+
     let mut tokens = Lexer::scan(&file, &input);
     tokens.remove_comments();
     eprintln!("{}", tokens);
 
-    let ast = Parser::parse(tokens);
+    let mut parser = Parser::new(tokens);
+    let program = parser.program().expect("program");
+    eprintln!("{:#?}", program);
+
     let mut interpreter = Interpreter::new();
-    interpreter.evaluate(&ast);
+    interpreter.evaluate(&program);
 }

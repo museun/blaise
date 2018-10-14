@@ -7,6 +7,9 @@ use std::fmt;
 enum Error {
     UnknownVariable(String),
     UnknownScope,
+    UnknownFunction(String), // Procedure?
+
+    InvalidArgument,
 
     CannotRead,
 
@@ -142,7 +145,35 @@ impl Interpreter {
     }
 
     fn visit_function_call(&mut self, node: &FunctionCall) -> Result<Object, Error> {
-        unimplemented!()
+        let FunctionCall(Variable(func), CallParams(params)) = node;
+        match self.scope()?.get(func).cloned() {
+            Some(Object::Function(name, args, block, _))
+            | Some(Object::Procedure(name, args, block)) => {
+                self.enter(name.clone());
+                for (a, p) in args.iter().zip(params.iter()) {
+                    let p = self.visit_expression(p)?;
+                    self.scope()?.set(a.to_string(), p);
+                }
+                let result = self.visit_block(&block)?;
+                self.leave();
+                Ok(result)
+            }
+
+            Some(Object::Builtin(Builtin::Write(f)))
+            | Some(Object::Builtin(Builtin::WriteLn(f))) => {
+                match self.visit_expression(&params[0])? {
+                    Object::Primitive(Primitive::String(s)) => f(s),
+                    o => {
+                        warn!("invalid argument: {:#?}", o);
+                        Err(Error::InvalidArgument)
+                    }
+                }
+            }
+
+            Some(Object::Builtin(Builtin::ReadLn(f))) => f(),
+
+            _ => Err(Error::UnknownFunction(func.to_string()))?,
+        }
     }
 
     fn visit_if_statement(&mut self, node: &IfStatement) -> Result<Object, Error> {
@@ -176,44 +207,22 @@ impl Interpreter {
     }
 
     fn visit_binary_op(&mut self, node: &BinaryExpression) -> Result<Object, Error> {
+        use crate::ast::{BinaryExpression as Ex, BinaryOperator as Op};
+        let mut visit = |e| self.visit_expression(e);
         match node {
-            BinaryExpression(left, BinaryOperator::Plus, expr) => self
-                .visit_expression(left)?
-                .add(&self.visit_expression(expr)?),
-            BinaryExpression(left, BinaryOperator::Minus, expr) => self
-                .visit_expression(left)?
-                .subtract(&self.visit_expression(expr)?),
-            BinaryExpression(left, BinaryOperator::Mul, expr) => self
-                .visit_expression(left)?
-                .multiply(&self.visit_expression(expr)?),
-            BinaryExpression(left, BinaryOperator::Div, expr) => self
-                .visit_expression(left)?
-                .int_divide(&self.visit_expression(expr)?),
+            Ex(left, Op::Plus, expr) => visit(left)?.add(&visit(expr)?),
+            Ex(left, Op::Minus, expr) => visit(left)?.subtract(&visit(expr)?),
+            Ex(left, Op::Mul, expr) => visit(left)?.multiply(&visit(expr)?),
+            Ex(left, Op::Div, expr) => visit(left)?.int_divide(&visit(expr)?),
 
-            BinaryExpression(left, BinaryOperator::And, expr) => self
-                .visit_expression(left)?
-                .and(&self.visit_expression(expr)?),
-            BinaryExpression(left, BinaryOperator::Or, expr) => self
-                .visit_expression(left)?
-                .or(&self.visit_expression(expr)?),
-            BinaryExpression(left, BinaryOperator::LessThan, expr) => self
-                .visit_expression(left)?
-                .less_than(&self.visit_expression(expr)?),
-            BinaryExpression(left, BinaryOperator::GreaterThan, expr) => self
-                .visit_expression(left)?
-                .greater_than(&self.visit_expression(expr)?),
-            BinaryExpression(left, BinaryOperator::LessThanEqual, expr) => self
-                .visit_expression(left)?
-                .less_than_equal(&self.visit_expression(expr)?),
-            BinaryExpression(left, BinaryOperator::GreaterThanEqual, expr) => self
-                .visit_expression(left)?
-                .greater_than_equal(&self.visit_expression(expr)?),
-            BinaryExpression(left, BinaryOperator::Equal, expr) => self
-                .visit_expression(left)?
-                .equal(&self.visit_expression(expr)?),
-            BinaryExpression(left, BinaryOperator::NotEqual, expr) => self
-                .visit_expression(left)?
-                .not_equal(&self.visit_expression(expr)?),
+            Ex(left, Op::And, expr) => visit(left)?.and(&visit(expr)?),
+            Ex(left, Op::Or, expr) => visit(left)?.or(&visit(expr)?),
+            Ex(left, Op::LessThan, expr) => visit(left)?.less_than(&visit(expr)?),
+            Ex(left, Op::GreaterThan, expr) => visit(left)?.greater_than(&visit(expr)?),
+            Ex(left, Op::LessThanEqual, expr) => visit(left)?.less_than_equal(&visit(expr)?),
+            Ex(left, Op::GreaterThanEqual, expr) => visit(left)?.greater_than_equal(&visit(expr)?),
+            Ex(left, Op::Equal, expr) => visit(left)?.equal(&visit(expr)?),
+            Ex(left, Op::NotEqual, expr) => visit(left)?.not_equal(&visit(expr)?),
         }
     }
 
@@ -233,7 +242,10 @@ impl Interpreter {
     }
 
     fn init(&mut self) -> Result<(), Error> {
-        let _ = self.scope()?;
+        let scope = self.scope()?;
+        scope.set("write", Object::Builtin(Builtin::Write(write)));
+        scope.set("writeln", Object::Builtin(Builtin::Write(writeln)));
+        scope.set("readln", Object::Builtin(Builtin::Write(readln)));
         Ok(())
     }
 
@@ -265,6 +277,14 @@ enum Object {
     Primitive(Primitive),
     Procedure(String, Vec<String>, crate::ast::Block),
     Function(String, Vec<String>, crate::ast::Block, crate::ast::Type),
+    Builtin(Builtin),
+}
+
+#[derive(Debug, Clone)]
+enum Builtin {
+    Write(fn(String) -> Result<Object, Error>),
+    WriteLn(fn(String) -> Result<Object, Error>),
+    ReadLn(fn() -> Result<Object, Error>),
 }
 
 #[derive(Debug, Clone)]
@@ -472,4 +492,39 @@ impl Scope {
     pub fn set(&mut self, name: impl Into<String>, object: impl Into<Object>) {
         self.vars.insert(name.into(), object.into());
     }
+}
+
+// builtins
+// TODO use a io::Read and io::Write as a backend
+fn write(data: String) -> Result<Object, Error> {
+    use std::io::prelude::*;
+    use std::io::stdout;
+
+    print!("{}", data);
+    stdout().flush().expect("flush");
+    Ok(Object::Unit)
+}
+
+fn writeln(data: String) -> Result<Object, Error> {
+    use std::io::prelude::*;
+    use std::io::stdout;
+
+    println!("{}", data);
+    stdout().flush().expect("flush");
+    Ok(Object::Unit)
+}
+
+fn readln(data: String) -> Result<Object, Error> {
+    use std::io::prelude::*;
+    use std::io::stdin;
+
+    let mut buf = String::new();
+
+    stdin()
+        .read_line(&mut buf)
+        .map_err(|e| {
+            debug!("cannot read stdin: {}", e);
+            Error::CannotRead
+        })
+        .and_then(|_| Ok(Object::Primitive(Primitive::String(buf))))
 }
