@@ -162,7 +162,10 @@ impl Interpreter {
             Some(Object::Builtin(Builtin::Write(f)))
             | Some(Object::Builtin(Builtin::WriteLn(f))) => {
                 match self.visit_expression(&params[0])? {
-                    Object::Primitive(Primitive::String(s)) => f(s),
+                    o @ Object::Primitive(Primitive::Integer(_))
+                    | o @ Object::Primitive(Primitive::String(_))
+                    | o @ Object::Primitive(Primitive::Boolean(_)) => f(o),
+
                     o => {
                         warn!("invalid argument: {:#?}", o);
                         Err(Error::InvalidArgument)
@@ -244,8 +247,11 @@ impl Interpreter {
     fn init(&mut self) -> Result<(), Error> {
         let scope = self.scope()?;
         scope.set("write", Object::Builtin(Builtin::Write(builtin::write)));
-        scope.set("writeln", Object::Builtin(Builtin::Write(builtin::writeln)));
-        scope.set("readln", Object::Builtin(Builtin::Write(builtin::readln)));
+        scope.set(
+            "writeln",
+            Object::Builtin(Builtin::WriteLn(builtin::writeln)),
+        );
+        scope.set("readln", Object::Builtin(Builtin::ReadLn(builtin::readln)));
         Ok(())
     }
 
@@ -281,17 +287,16 @@ pub enum Object {
 }
 
 #[derive(Debug, Clone)]
-pub enum Builtin {
-    Write(fn(String) -> Result<Object, Error>),
-    WriteLn(fn(String) -> Result<Object, Error>),
-    ReadLn(fn() -> Result<Object, Error>),
-}
-
-#[derive(Debug, Clone)]
 pub enum Primitive {
     Integer(i32),
     String(String),
     Boolean(bool),
+}
+#[derive(Debug, Clone)]
+pub enum Builtin {
+    Write(fn(Object) -> Result<Object, Error>),
+    WriteLn(fn(Object) -> Result<Object, Error>),
+    ReadLn(fn() -> Result<Object, Error>),
 }
 
 impl Object {
@@ -498,30 +503,41 @@ pub(crate) mod builtin {
     use super::*;
     // builtins
     // TODO use a io::Read and io::Write as a backend
-    pub(crate) fn write(data: String) -> Result<Object, Error> {
+    pub(crate) fn write(data: Object) -> Result<Object, Error> {
         use std::io::prelude::*;
         use std::io::stdout;
 
-        print!("{}", data);
+        match data {
+            Object::Primitive(Primitive::Integer(n)) => print!("{}", n),
+            Object::Primitive(Primitive::String(s)) => print!("{}", s),
+            Object::Primitive(Primitive::Boolean(b)) => print!("{}", b),
+            _ => return Err(Error::InvalidArgument),
+        }
+
         stdout().flush().expect("flush");
         Ok(Object::Unit)
     }
 
-    pub(crate) fn writeln(data: String) -> Result<Object, Error> {
+    pub(crate) fn writeln(data: Object) -> Result<Object, Error> {
         use std::io::prelude::*;
         use std::io::stdout;
 
-        println!("{}", data);
+        match data {
+            Object::Primitive(Primitive::Integer(n)) => println!("{}", n),
+            Object::Primitive(Primitive::String(s)) => println!("{}", s),
+            Object::Primitive(Primitive::Boolean(b)) => println!("{}", b),
+            _ => return Err(Error::InvalidArgument),
+        }
+
         stdout().flush().expect("flush");
         Ok(Object::Unit)
     }
 
-    pub(crate) fn readln(data: String) -> Result<Object, Error> {
+    pub(crate) fn readln() -> Result<Object, Error> {
         use std::io::prelude::*;
         use std::io::stdin;
 
         let mut buf = String::new();
-
         stdin()
             .read_line(&mut buf)
             .map_err(|e| {

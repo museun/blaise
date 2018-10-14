@@ -630,7 +630,6 @@ impl InfixParser {
         };
 
         let p = self.precedence();
-        warn!("prec: {}", p);
         Ok(BinaryExpression(expr, op, parser.expression(Some(p))?))
     }
 }
