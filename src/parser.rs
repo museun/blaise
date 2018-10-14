@@ -358,32 +358,6 @@ impl Parser {
         Ok(UnaryExpression(op, self.expression(Some(p))?))
     }
 
-    fn binary_op(&mut self, expr: Expression) -> Result<BinaryExpression> {
-        use self::BinaryOperator as Op;
-        use crate::tokens::{
-            Reserved::*,
-            Symbol::*,
-            Token::{Reserved, Symbol},
-        };
-
-        let t = self.tokens.current();
-        let op = match t {
-            Symbol(s) => s
-                .as_binary_op()
-                .ok_or_else(|| self.unexpected::<(), _>(t).unwrap_err())?,
-
-            Reserved(s) => s
-                .as_binary_op()
-                .ok_or_else(|| self.unexpected::<(), _>(t).unwrap_err())?,
-
-            t => self.unexpected(t)?,
-        };
-
-        let p = self.next_precedence();
-        warn!("prec: {}", p);
-        Ok(BinaryExpression(expr, op, self.expression(Some(p))?))
-    }
-
     fn literal(&mut self) -> Result<Literal> {
         Ok(match self.tokens.current() {
             Token::Number(n) => Literal::Integer(n),
@@ -617,7 +591,10 @@ enum InfixParser {
 impl InfixParser {
     pub fn parse(&self, parser: &mut Parser, left: Expression) -> Result<Expression> {
         Ok(match self {
-            InfixParser::BinaryOperator(_) => Expression::Binary(Box::new(parser.binary_op(left)?)),
+            InfixParser::BinaryOperator(_) => {
+                let op = self.binary_op(parser, left)?;
+                Expression::Binary(Box::new(op))
+            }
 
             InfixParser::FunctionCall(_) => {
                 Expression::FunctionCall(parser.function_call_expr(left)?)
@@ -629,6 +606,32 @@ impl InfixParser {
         match *self {
             InfixParser::BinaryOperator(p) | InfixParser::FunctionCall(p) => p as u32,
         }
+    }
+
+    fn binary_op(&self, parser: &mut Parser, expr: Expression) -> Result<BinaryExpression> {
+        use self::BinaryOperator as Op;
+        use crate::tokens::{
+            Reserved::*,
+            Symbol::*,
+            Token::{Reserved, Symbol},
+        };
+
+        let t = parser.tokens.current();
+        let op = match t {
+            Symbol(s) => s
+                .as_binary_op()
+                .ok_or_else(|| parser.unexpected::<(), _>(t).unwrap_err())?,
+
+            Reserved(s) => s
+                .as_binary_op()
+                .ok_or_else(|| parser.unexpected::<(), _>(t).unwrap_err())?,
+
+            t => parser.unexpected(t)?,
+        };
+
+        let p = self.precedence();
+        warn!("prec: {}", p);
+        Ok(BinaryExpression(expr, op, parser.expression(Some(p))?))
     }
 }
 
