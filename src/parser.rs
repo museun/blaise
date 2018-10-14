@@ -241,19 +241,16 @@ impl Parser {
             e => self.error("expression isn't a variable")?,
         };
 
-        debug!("call expr: {:?}", name);
         let params = if self.peek("(") {
             self.tokens.advance();
             self.call_params()?
         } else {
             CallParams(vec![])
         };
-        debug!("call args: {:?}", params);
         Ok(FunctionCall(name.clone(), params))
     }
 
     fn if_statement(&mut self) -> Result<IfStatement> {
-        trace!("entering if");
         // if_stmt ::= IF expr THEN comp_stmt (ELSE (if_stmt | comp_stmt))?
         self.expect_token("if")?;
         let expr = self.expression(None)?;
@@ -275,7 +272,6 @@ impl Parser {
     }
 
     fn call_params(&mut self) -> Result<CallParams> {
-        debug!("call params: {:#?}", self.tokens.peek());
         if self.peek(")") {
             self.tokens.advance();
             return Ok(CallParams(vec![]));
@@ -318,28 +314,21 @@ impl Parser {
     fn expression(&mut self, p: Option<u32>) -> Result<Expression> {
         let p = p.unwrap_or(0);
         let token = self.tokens.next_token();
-        debug!("expr tok: {:#?}", token);
+
         let parser = self
             .prefix_parser(&token)
             .ok_or_else(|| self.error::<(), _>(token).unwrap_err())?;
         let mut lhs = parser.parse(self)?;
 
-        debug!("lhs ({}): {:#?} ", p, lhs);
-        loop {
-            let np = self.next_precedence();
-            if p == np {
-                break;
-            }
-
-            info!("lhs ({}): {:#?}", np, lhs);
-            let token = self.tokens.peek();
+        while p < self.next_precedence() {
+            let token = self.tokens.next_token();
             let parser = self
                 .infix_parser(&token)
                 .ok_or_else(|| self.error::<(), _>(token).unwrap_err())?;
             lhs = parser.parse(self, lhs)?;
-            debug!("new lhs: {:?}", lhs);
         }
-        debug!("lhs -: {:#?}", lhs);
+
+        debug!("expr: {:#?}", lhs);
         Ok(lhs)
     }
 
@@ -362,7 +351,8 @@ impl Parser {
             Token::Reserved(Reserved::Not) => UnaryOperator::Not,
             t => self.unexpected(t)?,
         };
-        Ok(UnaryExpression(op, self.expression(None)?))
+        let p = self.next_precedence();
+        Ok(UnaryExpression(op, self.expression(Some(p))?))
     }
 
     fn binary_op(&mut self, expr: Expression) -> Result<BinaryExpression> {
@@ -373,7 +363,7 @@ impl Parser {
             Token::{Reserved, Symbol},
         };
 
-        let t = self.tokens.next_token();
+        let t = self.tokens.current();
         let op = match t {
             Symbol(s) => s
                 .as_binary_op()
@@ -385,7 +375,12 @@ impl Parser {
 
             t => self.unexpected(t)?,
         };
-        Ok(BinaryExpression(expr, op, self.expression(None)?))
+
+        // self.tokens.advance(); //?
+
+        let p = self.next_precedence();
+        warn!("prec: {}", p);
+        Ok(BinaryExpression(expr, op, self.expression(Some(p))?))
     }
 
     fn literal(&mut self) -> Result<Literal> {
@@ -397,26 +392,20 @@ impl Parser {
     }
 
     fn ty(&mut self) -> Result<crate::ast::Type> {
-        trace!("entering ty");
         match self.tokens.next_token() {
-            Token::Type(t) => {
-                let t = t.into();
-                trace!("leaving ty with: {:?}", t);
-                Ok(t)
-            }
+            Token::Type(t) => Ok(t.into()),
             t => self.unexpected(t)?,
         }
     }
 
     fn prefix_parser(&mut self, token: &Token) -> Option<PrefixParser> {
-        trace!("prefix_parser: {:#?}", token);
         match token {
             Token::Number(_) | Token::String(_) => Some(PrefixParser::Literal),
-            Token::Symbol(Symbol::Plus) | Token::Symbol(Symbol::Minus) => Some(
-                PrefixParser::UnaryOperator(Precendence::UnaryLiteral as u32),
-            ),
+            Token::Symbol(Symbol::Plus) | Token::Symbol(Symbol::Minus) => {
+                Some(PrefixParser::UnaryOperator(Precendence::UnaryLiteral))
+            }
             Token::Reserved(Reserved::Not) => {
-                Some(PrefixParser::UnaryOperator(Precendence::UnaryBool as u32))
+                Some(PrefixParser::UnaryOperator(Precendence::UnaryBool))
             }
             Token::Identifier(_) => Some(PrefixParser::Variable),
             _ => None,
@@ -432,26 +421,37 @@ impl Parser {
             Token::*,
         };
 
-        match token {
-            Symbol(Plus) | Symbol(Minus) => Some(Op(Addition as u32)),
-            Symbol(Symbol::Mul) | Symbol(Symbol::Div) => Some(Op(Multiplication as u32)),
-            Reserved(And) | Reserved(Or) => Some(Op(BinaryBool as u32)),
+        let op = match token {
+            Symbol(Plus) | Symbol(Minus) => Some(Op(BinaryAdd)),
+            Symbol(Symbol::Mul) | Symbol(Symbol::Div) => Some(Op(BinaryMul)),
+            Reserved(And) | Reserved(Or) => Some(Op(BinaryBool)),
 
             Symbol(LessThan)
             | Symbol(GreaterThan)
             | Symbol(LessThanEqual)
             | Symbol(GreaterThanEqual)
             | Symbol(Equal)
-            | Symbol(NotEqual) => Some(Op(Relative as u32)),
+            | Symbol(NotEqual) => Some(Op(Relative)),
 
-            Symbol(OpenParen) => Some(InfixParser::FunctionCall(Call as u32)),
+            Symbol(OpenParen) => Some(InfixParser::FunctionCall(Call)),
             _ => None,
+        };
+        op
+    }
+
+    fn identifier(&mut self) -> Result<String> {
+        match self.tokens.next().ok_or_else(|| Error {
+            kind: ErrorKind::Unexpected(Token::EOF),
+            span: self.tokens.span().clone(),
+            source: self.tokens.source().into(),
+        })? {
+            Token::Identifier(name) => Ok(name.clone()),
+            t => self.unexpected(t)?,
         }
     }
 
     fn next_precedence(&mut self) -> u32 {
         let token = self.tokens.peek();
-        debug!("next prec: {:#?}", token);
         match self.infix_parser(&token) {
             Some(pp) => pp.precedence(),
             _ => 0,
@@ -484,12 +484,12 @@ impl Parser {
         F: FnMut(&mut Parser) -> Result<E>,
     {
         let res = f(self).map_err(|e| {
-            trace!("expected: {:#?}", toks.as_ref());
+            trace!("expected: {:?}", toks.as_ref());
             e
         })?;
         for tok in toks.as_ref() {
             self.expect_token(tok.clone()).map_err(|e| {
-                trace!("expected: {:#?}", tok);
+                trace!("expected: {:?}", tok);
                 e
             })?;
         }
@@ -507,17 +507,6 @@ impl Parser {
             }
             Token::EOF => self.unexpected(Token::EOF)?,
             _ => self.expected(tok),
-        }
-    }
-
-    fn identifier(&mut self) -> Result<String> {
-        match self.tokens.next().ok_or_else(|| Error {
-            kind: ErrorKind::Unexpected(Token::EOF),
-            span: self.tokens.span().clone(),
-            source: self.tokens.source().into(),
-        })? {
-            Token::Identifier(name) => Ok(name.clone()),
-            t => self.unexpected(t)?,
         }
     }
 
@@ -595,7 +584,7 @@ impl BinaryOp for Reserved {
 enum PrefixParser {
     Literal,
     Variable,
-    UnaryOperator(u32),
+    UnaryOperator(Precendence),
     // grouping (...)
 }
 
@@ -610,7 +599,7 @@ impl PrefixParser {
 
     pub fn precedence(&self) -> u32 {
         if let PrefixParser::UnaryOperator(p) = *self {
-            return p;
+            return p as u32;
         }
         0
     }
@@ -618,13 +607,12 @@ impl PrefixParser {
 
 #[derive(Debug)]
 enum InfixParser {
-    BinaryOperator(u32),
-    FunctionCall(u32),
+    BinaryOperator(Precendence),
+    FunctionCall(Precendence),
 }
 
 impl InfixParser {
     pub fn parse(&self, parser: &mut Parser, left: Expression) -> Result<Expression> {
-        debug!("infix parser: {:#?}", self);
         Ok(match self {
             InfixParser::BinaryOperator(_) => Expression::Binary(Box::new(parser.binary_op(left)?)),
             InfixParser::FunctionCall(_) => {
@@ -635,16 +623,17 @@ impl InfixParser {
 
     pub fn precedence(&self) -> u32 {
         match *self {
-            InfixParser::BinaryOperator(p) | InfixParser::FunctionCall(p) => p,
+            InfixParser::BinaryOperator(p) | InfixParser::FunctionCall(p) => p as u32,
         }
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum Precendence {
     Call = 7,
     UnaryLiteral = 6,
-    Multiplication = 5,
-    Addition = 4,
+    BinaryMul = 5,
+    BinaryAdd = 4,
     Relative = 3,
     UnaryBool = 2,
     BinaryBool = 1,

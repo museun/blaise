@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 #[derive(Debug)]
-enum Error {
+pub enum Error {
     UnknownVariable(String),
     UnknownScope,
     UnknownFunction(String), // Procedure?
@@ -243,9 +243,9 @@ impl Interpreter {
 
     fn init(&mut self) -> Result<(), Error> {
         let scope = self.scope()?;
-        scope.set("write", Object::Builtin(Builtin::Write(write)));
-        scope.set("writeln", Object::Builtin(Builtin::Write(writeln)));
-        scope.set("readln", Object::Builtin(Builtin::Write(readln)));
+        scope.set("write", Object::Builtin(Builtin::Write(builtin::write)));
+        scope.set("writeln", Object::Builtin(Builtin::Write(builtin::writeln)));
+        scope.set("readln", Object::Builtin(Builtin::Write(builtin::readln)));
         Ok(())
     }
 
@@ -272,7 +272,7 @@ impl Interpreter {
 }
 
 #[derive(Debug, Clone)]
-enum Object {
+pub enum Object {
     Unit,
     Primitive(Primitive),
     Procedure(String, Vec<String>, crate::ast::Block),
@@ -281,14 +281,14 @@ enum Object {
 }
 
 #[derive(Debug, Clone)]
-enum Builtin {
+pub enum Builtin {
     Write(fn(String) -> Result<Object, Error>),
     WriteLn(fn(String) -> Result<Object, Error>),
     ReadLn(fn() -> Result<Object, Error>),
 }
 
 #[derive(Debug, Clone)]
-enum Primitive {
+pub enum Primitive {
     Integer(i32),
     String(String),
     Boolean(bool),
@@ -494,37 +494,40 @@ impl Scope {
     }
 }
 
-// builtins
-// TODO use a io::Read and io::Write as a backend
-fn write(data: String) -> Result<Object, Error> {
-    use std::io::prelude::*;
-    use std::io::stdout;
+pub(crate) mod builtin {
+    use super::*;
+    // builtins
+    // TODO use a io::Read and io::Write as a backend
+    pub(crate) fn write(data: String) -> Result<Object, Error> {
+        use std::io::prelude::*;
+        use std::io::stdout;
 
-    print!("{}", data);
-    stdout().flush().expect("flush");
-    Ok(Object::Unit)
-}
+        print!("{}", data);
+        stdout().flush().expect("flush");
+        Ok(Object::Unit)
+    }
 
-fn writeln(data: String) -> Result<Object, Error> {
-    use std::io::prelude::*;
-    use std::io::stdout;
+    pub(crate) fn writeln(data: String) -> Result<Object, Error> {
+        use std::io::prelude::*;
+        use std::io::stdout;
 
-    println!("{}", data);
-    stdout().flush().expect("flush");
-    Ok(Object::Unit)
-}
+        println!("{}", data);
+        stdout().flush().expect("flush");
+        Ok(Object::Unit)
+    }
 
-fn readln(data: String) -> Result<Object, Error> {
-    use std::io::prelude::*;
-    use std::io::stdin;
+    pub(crate) fn readln(data: String) -> Result<Object, Error> {
+        use std::io::prelude::*;
+        use std::io::stdin;
 
-    let mut buf = String::new();
+        let mut buf = String::new();
 
-    stdin()
-        .read_line(&mut buf)
-        .map_err(|e| {
-            debug!("cannot read stdin: {}", e);
-            Error::CannotRead
-        })
-        .and_then(|_| Ok(Object::Primitive(Primitive::String(buf))))
+        stdin()
+            .read_line(&mut buf)
+            .map_err(|e| {
+                debug!("cannot read stdin: {}", e);
+                Error::CannotRead
+            })
+            .and_then(|_| Ok(Object::Primitive(Primitive::String(buf))))
+    }
 }
