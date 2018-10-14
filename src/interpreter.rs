@@ -5,31 +5,31 @@ use std::fmt;
 
 #[derive(Debug)]
 pub enum Error {
+    CannotRead,
     UnknownVariable(String),
     UnknownScope,
     UnknownFunction(String), // Procedure?
-
     InvalidArgument,
+    InvalidOperation(OperatorError, Object, Option<Object>),
+}
 
-    CannotRead,
-
-    InvalidAdd(Object, Object),
-    InvalidSub(Object, Object),
-    InvalidMul(Object, Object),
-    InvalidIntDiv(Object, Object),
-
-    InvalidUnaryAdd(Object),
-    InvalidUnarySub(Object),
-    InvalidUnaryNot(Object),
-
-    InvalidAnd(Object, Object),
-    InvalidOr(Object, Object),
-    InvalidLessThan(Object, Object),
-    InvalidGreaterThan(Object, Object),
-    InvalidLessThanEqual(Object, Object),
-    InvalidGreaterThanEqual(Object, Object),
-    InvalidEqual(Object, Object),
-    InvalidNotEqual(Object, Object),
+#[derive(Debug)]
+pub enum OperatorError {
+    Add,
+    Sub,
+    Mul,
+    IntDiv,
+    UnaryAdd,
+    UnarySub,
+    UnaryNot,
+    And,
+    Or,
+    LessThan,
+    GreaterThan,
+    LessThanEqual,
+    GreaterThanEqual,
+    Equal,
+    NotEqual,
 }
 
 impl fmt::Display for Error {
@@ -298,7 +298,11 @@ impl Object {
             Object::Primitive(Primitive::Integer(i)) => {
                 Ok(Object::Primitive(Primitive::Integer(*i)))
             }
-            t => Err(Error::InvalidUnaryAdd(t.clone())),
+            t => Err(Error::InvalidOperation(
+                OperatorError::UnaryAdd,
+                t.clone(),
+                None,
+            )),
         }
     }
     pub fn unary_minus(&self) -> Result<Self, Error> {
@@ -306,7 +310,11 @@ impl Object {
             Object::Primitive(Primitive::Integer(i)) => {
                 Ok(Object::Primitive(Primitive::Integer(-i)))
             }
-            t => Err(Error::InvalidUnarySub(t.clone())),
+            t => Err(Error::InvalidOperation(
+                OperatorError::UnarySub,
+                t.clone(),
+                None,
+            )),
         }
     }
     pub fn negate(&self) -> Result<Self, Error> {
@@ -314,7 +322,11 @@ impl Object {
             Object::Primitive(Primitive::Boolean(i)) => {
                 Ok(Object::Primitive(Primitive::Boolean(!i)))
             }
-            t => Err(Error::InvalidUnaryNot(t.clone())),
+            t => Err(Error::InvalidOperation(
+                OperatorError::UnaryNot,
+                t.clone(),
+                None,
+            )),
         }
     }
 
@@ -332,7 +344,11 @@ impl Object {
                 "{}{}",
                 left, right
             )))),
-            (left, right) => Err(Error::InvalidAdd(left.clone(), right.clone())),
+            (left, right) => Err(Error::InvalidOperation(
+                OperatorError::Add,
+                left.clone(),
+                Some(right.clone()),
+            )),
         }
     }
     pub fn subtract(&self, other: &Self) -> Result<Self, Error> {
@@ -341,7 +357,11 @@ impl Object {
                 Object::Primitive(Primitive::Integer(left)),
                 Object::Primitive(Primitive::Integer(right)),
             ) => Ok(Object::Primitive(Primitive::Integer(left - right))),
-            (left, right) => Err(Error::InvalidSub(left.clone(), right.clone())),
+            (left, right) => Err(Error::InvalidOperation(
+                OperatorError::Sub,
+                left.clone(),
+                Some(right.clone()),
+            )),
         }
     }
     pub fn multiply(&self, other: &Self) -> Result<Self, Error> {
@@ -350,7 +370,11 @@ impl Object {
                 Object::Primitive(Primitive::Integer(left)),
                 Object::Primitive(Primitive::Integer(right)),
             ) => Ok(Object::Primitive(Primitive::Integer(left * right))),
-            (left, right) => Err(Error::InvalidMul(left.clone(), right.clone())),
+            (left, right) => Err(Error::InvalidOperation(
+                OperatorError::Mul,
+                left.clone(),
+                Some(right.clone()),
+            )),
         }
     }
     pub fn int_divide(&self, other: &Self) -> Result<Self, Error> {
@@ -359,7 +383,11 @@ impl Object {
                 Object::Primitive(Primitive::Integer(left)),
                 Object::Primitive(Primitive::Integer(right)),
             ) => Ok(Object::Primitive(Primitive::Integer(left / right))),
-            (left, right) => Err(Error::InvalidIntDiv(left.clone(), right.clone())),
+            (left, right) => Err(Error::InvalidOperation(
+                OperatorError::IntDiv,
+                left.clone(),
+                Some(right.clone()),
+            )),
         }
     }
 
@@ -369,7 +397,11 @@ impl Object {
                 Object::Primitive(Primitive::Boolean(left)),
                 Object::Primitive(Primitive::Boolean(right)),
             ) => Ok(Object::Primitive(Primitive::Boolean(*left && *right))),
-            (left, right) => Err(Error::InvalidAnd(left.clone(), right.clone())),
+            (left, right) => Err(Error::InvalidOperation(
+                OperatorError::And,
+                left.clone(),
+                Some(right.clone()),
+            )),
         }
     }
     pub fn or(&self, other: &Self) -> Result<Self, Error> {
@@ -378,7 +410,11 @@ impl Object {
                 Object::Primitive(Primitive::Boolean(left)),
                 Object::Primitive(Primitive::Boolean(right)),
             ) => Ok(Object::Primitive(Primitive::Boolean(*left || *right))),
-            (left, right) => Err(Error::InvalidOr(left.clone(), right.clone())),
+            (left, right) => Err(Error::InvalidOperation(
+                OperatorError::Or,
+                left.clone(),
+                Some(right.clone()),
+            )),
         }
     }
     pub fn less_than(&self, other: &Self) -> Result<Self, Error> {
@@ -388,7 +424,11 @@ impl Object {
                 Object::Primitive(Primitive::Integer(right)),
             ) => Ok(Object::Primitive(Primitive::Boolean(left < right))),
 
-            (left, right) => Err(Error::InvalidLessThan(left.clone(), right.clone())),
+            (left, right) => Err(Error::InvalidOperation(
+                OperatorError::LessThan,
+                left.clone(),
+                Some(right.clone()),
+            )),
         }
     }
     pub fn greater_than(&self, other: &Self) -> Result<Self, Error> {
@@ -398,7 +438,11 @@ impl Object {
                 Object::Primitive(Primitive::Integer(right)),
             ) => Ok(Object::Primitive(Primitive::Boolean(left > right))),
 
-            (left, right) => Err(Error::InvalidGreaterThan(left.clone(), right.clone())),
+            (left, right) => Err(Error::InvalidOperation(
+                OperatorError::GreaterThan,
+                left.clone(),
+                Some(right.clone()),
+            )),
         }
     }
     pub fn less_than_equal(&self, other: &Self) -> Result<Self, Error> {
@@ -408,7 +452,11 @@ impl Object {
                 Object::Primitive(Primitive::Integer(right)),
             ) => Ok(Object::Primitive(Primitive::Boolean(left <= right))),
 
-            (left, right) => Err(Error::InvalidLessThanEqual(left.clone(), right.clone())),
+            (left, right) => Err(Error::InvalidOperation(
+                OperatorError::LessThanEqual,
+                left.clone(),
+                Some(right.clone()),
+            )),
         }
     }
     pub fn greater_than_equal(&self, other: &Self) -> Result<Self, Error> {
@@ -418,7 +466,11 @@ impl Object {
                 Object::Primitive(Primitive::Boolean(right)),
             ) => Ok(Object::Primitive(Primitive::Boolean(left >= right))),
 
-            (left, right) => Err(Error::InvalidGreaterThanEqual(left.clone(), right.clone())),
+            (left, right) => Err(Error::InvalidOperation(
+                OperatorError::GreaterThanEqual,
+                left.clone(),
+                Some(right.clone()),
+            )),
         }
     }
     pub fn equal(&self, other: &Self) -> Result<Self, Error> {
@@ -428,7 +480,11 @@ impl Object {
                 Object::Primitive(Primitive::Integer(right)),
             ) => Ok(Object::Primitive(Primitive::Boolean(left == right))),
 
-            (left, right) => Err(Error::InvalidEqual(left.clone(), right.clone())),
+            (left, right) => Err(Error::InvalidOperation(
+                OperatorError::Equal,
+                left.clone(),
+                Some(right.clone()),
+            )),
         }
     }
     pub fn not_equal(&self, other: &Self) -> Result<Self, Error> {
@@ -438,7 +494,11 @@ impl Object {
                 Object::Primitive(Primitive::Integer(right)),
             ) => Ok(Object::Primitive(Primitive::Boolean(left != right))),
 
-            (left, right) => Err(Error::InvalidNotEqual(left.clone(), right.clone())),
+            (left, right) => Err(Error::InvalidOperation(
+                OperatorError::NotEqual,
+                left.clone(),
+                Some(right.clone()),
+            )),
         }
     }
 }
