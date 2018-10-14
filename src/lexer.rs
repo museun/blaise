@@ -239,7 +239,7 @@ fn type_lexer(stream: &mut Stream) -> State {
     if !c.is_ascii_alphabetic() {
         return State::Yield;
     }
-    let name = stream
+    let mut name = stream
         .take_while(|&c| c.is_ascii_alphabetic())
         .collect::<String>();
 
@@ -247,6 +247,7 @@ fn type_lexer(stream: &mut Stream) -> State {
         return State::Yield;
     }
 
+    name.make_ascii_lowercase();
     let skip = name.len() - 1;
     for ty in TYPES {
         if ty.0 == name {

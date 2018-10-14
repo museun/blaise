@@ -1,37 +1,88 @@
 use crate::ast::*;
+use crate::span::Span;
 use crate::tokens::*;
 
 pub struct Parser<'a> {
     tokens: Tokens<'a>,
 }
 
-impl<'a> Parser<'a> {
-    pub fn parse(tokens: Tokens<'a>) -> Program {
-        let mut this = Self { tokens };
-        let program = this.program();
-        match this.tokens.next().unwrap() {
-            Token::EOF => {}
-            t => panic!("{:#?}", t),
+pub struct Error<'a> {
+    kind: ErrorKind,
+    span: Span<'a>,
+}
+
+impl<'a> Error<'a> {
+    pub fn new(kind: impl Into<ErrorKind>, span: Span<'a>) -> Self {
+        Self {
+            kind: kind.into(),
+            span,
         }
-        program
     }
 
-    fn program(&mut self) -> Program {
+    pub fn kind(&self) -> ErrorKind {
+        self.kind
+    }
+
+    pub fn span(&self) -> &Span<'a> {
+        &self.span
+    }
+}
+
+pub enum ErrorKind {
+    UnexpectedEof,
+    Unknown(String),
+    Expected(Token),
+}
+
+impl From<Token> for ErrorKind {
+    fn from(token: Token) -> Self {
+        ErrorKind::Expected(token)
+    }
+}
+
+// bit of handwaving to convert a string into a token
+// it only handles Symbols and Reserved Keywords
+// or into a custom error message
+impl<'a> From<&'a str> for ErrorKind {
+    fn from(s: &'a str) -> Self {
+        if let Some(t) = Token::try_parse(s) {
+            return t.into();
+        }
+        ErrorKind::Unknown(s.into())
+    }
+}
+
+impl<'a> Parser<'a> {
+    pub fn parse(tokens: Tokens<'a>) -> Result<Program, Error> {
+        let mut this = Self { tokens };
+        let program = this.program()?;
+        match this.tokens.next().unwrap() {
+            Token::EOF => Ok(program),
+            t => this.error(Token::EOF),
+        }
+    }
+
+    fn error<T>(&self, err: impl Into<ErrorKind>) -> Result<T, Error> {
+        let span = self.tokens.span().clone()
+        Err(Error::new(err.into(),span))
+    }
+
+    fn program(&mut self) -> Result<Program, Error> {
         if !self.consume(Token::Reserved(Reserved::Program)) {
-            panic!("expected program");
+            return self.error("program");
         }
 
         let variable = self.variable();
         if !self.consume(Token::Symbol(Symbol::SemiColon)) {
-            panic!("expected semi-colon");
+            return self.error(";");
         }
 
         let block = self.block();
         if !self.consume(Token::Symbol(Symbol::Period)) {
-            panic!("expected period");
+            return self.error(".");
         }
 
-        Program(variable, block)
+        Ok(Program(variable, block))
     }
 
     fn block(&mut self) -> Block {
@@ -224,14 +275,16 @@ impl<'a> Parser<'a> {
         let (expr, compound) = match self.tokens.next().unwrap() {
             Token::Reserved(Reserved::If) => {
                 match (self.expression(None), self.tokens.next().unwrap()) {
-                    (expr, Token::Reserved(Reserved::Then)) => (expr, self.compound_statement()),
+                    (expr, Token::Reserved(Reserved::Then)) => {
+                        (expr, { self.compound_statement() })
+                    }
                     (expr, t) => panic!("{:#?} expr {:#?}", expr, t),
                 }
             }
             t => panic!("{:#?}", t),
         };
 
-        match self.tokens.next().unwrap() {
+        match self.tokens.peek().unwrap() {
             Token::Reserved(Reserved::Else) => {
                 self.tokens.advance();
                 match self.tokens.peek().unwrap() {
@@ -508,4 +561,43 @@ enum Precendence {
     Relative = 3,
     UnaryBool = 2,
     BinaryBool = 1,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::*;
+    use crate::*;
+
+    // I want the AST to be an ADT
+    fn make_ast(input: &str) -> Program {
+        let mut tokens = Lexer::scan("stdin", &input);
+        tokens.remove_comments();
+
+        // this shouldn't return a Program, but some Fragment
+        Parser::parse(tokens)
+    }
+
+    macro_rules! check {
+        ($l:expr, $($p:pat)|*) => {
+            // use std::mem::discriminant;
+            // let l = discriminant(&$l);
+            // let r = discriminant(&$r);
+            match $l {
+                $($p)|* => (),
+                ref result => panic!("expected: {}, got: {:?}", stringify!($($p)|*), result),
+            }
+        };
+    }
+
+    #[test]
+    fn program() {
+        let ast = make_ast(
+            r#"
+program test;
+"#,
+        );
+
+        check!(ast, Program(_, _));
+    }
 }

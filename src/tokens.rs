@@ -22,6 +22,29 @@ pub enum Token {
 }
 
 impl Token {
+    pub(crate) fn try_parse(s: impl AsRef<str>) -> Option<Self> {
+        let s = s.as_ref();
+        if s.len() <= 2 {
+            if let Some(s) = Symbol::new(s) {
+                return Some(Token::Symbol(s));
+            }
+        }
+        if let Some(s) = Reserved::new(s) {
+            return Some(Token::Reserved(s));
+        }
+        None
+    }
+}
+
+/// This panics if its not a valid Symbol or Reserve
+impl<'a> From<&'a str> for Token {
+    fn from(s: &'a str) -> Self {
+        let msg = || format!("can't turn '{}' into a Token", s);
+        Token::try_parse(s).expect(&msg())
+    }
+}
+
+impl Token {
     pub(crate) fn width(&self) -> usize {
         use self::Token::*;
         match self {
@@ -240,6 +263,14 @@ pub struct Tokens<'a> {
 impl<'a> Tokens<'a> {
     pub fn new(data: Vec<(Span<'a>, Token)>) -> Self {
         Self { data, pos: 0 }
+    }
+
+    pub fn span(&self) -> &Span {
+        self.span_at(self.pos()).unwrap()
+    }
+
+    pub fn span_at(&self, pos: usize) -> Option<&Span> {
+        self.data.get(pos).map(|(s, _)| s)
     }
 
     pub fn remove_comments(&mut self) {
