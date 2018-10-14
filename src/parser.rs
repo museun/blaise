@@ -115,6 +115,7 @@ impl Parser {
             err
         })?;
 
+        trace!("decls: {:#?}", decls);
         let compound = self.compound_statement().map_err(|err| {
             error!("want: compound:\n{:?}", err);
             err
@@ -210,10 +211,10 @@ impl Parser {
 
     fn compound_statement(&mut self) -> Result<Compound> {
         // begin stmt1; stmt2; end
-        self.expect_token("begin")?;
+        self.expect_token("begin").unwrap();
         let mut statements = vec![];
         while !self.consume("end") {
-            statements.push(self.statement()?)
+            statements.push(self.statement().unwrap())
         }
         Ok(Compound(statements))
     }
@@ -255,7 +256,7 @@ impl Parser {
         debug!("call expr: {:?}", name);
         let params = if self.peek("(") {
             self.tokens.advance();
-            self.expect(Self::call_params, &[")"])?
+            self.call_params()?
         } else {
             CallParams(vec![])
         };
@@ -482,9 +483,9 @@ impl Parser {
         T: Into<Token> + Clone,
         F: FnMut(&mut Parser) -> Result<E>,
     {
-        let res = f(self)?;
+        let res = f(self).unwrap();
         for tok in toks.as_ref() {
-            self.expect_token(tok.clone())?;
+            self.expect_token(tok.clone()).unwrap();
         }
         Ok(res)
     }
