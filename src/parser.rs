@@ -217,7 +217,10 @@ impl Parser {
             Identifier(_) => match self.tokens.peek_ahead(1).unwrap() {
                 Symbol(OpenParen) => FunctionCall(self.function_call()?),
                 Symbol(Assign) => Assignment(self.assignment_statement()?),
-                t => self.unexpected(t)?,
+                t => {
+                    self.tokens.advance();
+                    self.unexpected(t)?
+                }
             },
             Reserved(If) => IfStatement(self.if_statement()?),
             t => self.unexpected(t)?,
