@@ -286,7 +286,7 @@ impl Tokens {
     }
 
     pub fn span(&self) -> &Span {
-        self.span_at(self.pos() - 1).expect("a span")
+        self.span_at(self.pos() + 1).expect("a span")
     }
 
     pub fn span_at(&self, pos: usize) -> Option<&Span> {

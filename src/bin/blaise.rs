@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 use std::env;
 use std::fs;
 
@@ -29,7 +32,13 @@ fn main() {
     eprintln!("{}", tokens);
 
     let mut parser = Parser::new(tokens);
-    let program = parser.program().expect("program");
+    let program = match parser.program() {
+        Ok(program) => program,
+        Err(err) => {
+            error!("\n{:?}", err);
+            ::std::process::exit(1);
+        }
+    };
     eprintln!("{:#?}", program);
 
     let mut interpreter = Interpreter::new();

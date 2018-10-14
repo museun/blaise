@@ -95,31 +95,16 @@ impl Parser {
 
     pub fn program(&mut self) -> Result<Program> {
         self.expect_token("program")?;
-        let variable = self.expect(Self::variable, &[";"]).map_err(|err| {
-            error!("want: variable:\n{:?}", err);
-            err
-        })?;
-        let block = self
-            .expect(Self::block, &["."])
-            .map_err(|err| {
-                error!("want: block:\n{:?}", err);
-                err
-            })
-            .expect("gimme a stack trace please");
+        let variable = self.expect(Self::variable, &[";"])?;
+        let block = self.expect(Self::block, &["."])?;
         Ok(Program(variable, block))
     }
 
     pub fn block(&mut self) -> Result<Block> {
-        let decls = self.declarations().map_err(|err| {
-            error!("want: decls:\n{:?}", err);
-            err
-        })?;
+        let decls = self.declarations()?;
 
         trace!("decls: {:#?}", decls);
-        let compound = self.compound_statement().map_err(|err| {
-            error!("want: compound:\n{:?}", err);
-            err
-        })?;
+        let compound = self.compound_statement()?;
         Ok(Block(decls, compound))
     }
 
@@ -496,12 +481,12 @@ impl Parser {
         F: FnMut(&mut Parser) -> Result<E>,
     {
         let res = f(self).map_err(|e| {
-            error!("expected: {:#?}", toks.as_ref());
+            trace!("expected: {:#?}", toks.as_ref());
             e
         })?;
         for tok in toks.as_ref() {
             self.expect_token(tok.clone()).map_err(|e| {
-                error!("expected: {:#?}", tok);
+                trace!("expected: {:#?}", tok);
                 e
             })?;
         }
