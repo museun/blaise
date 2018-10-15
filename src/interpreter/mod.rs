@@ -9,7 +9,7 @@ use self::error::{Error, OperatorError};
 use self::object::{Builtin, Object, Primitive};
 use self::scope::Scope;
 
-type Result<T> = ::std::result::Result<T>;
+type Result<T> = ::std::result::Result<T, Error>;
 
 #[derive(Default)]
 pub struct Interpreter {
@@ -148,8 +148,9 @@ impl Interpreter {
         }
     }
 
-    fn visit_group(&mut self, _node: GroupExpression) -> Result<Object> {
-        unimplemented!()
+    fn visit_group(&mut self, node: GroupExpression) -> Result<Object> {
+        let GroupExpression(expr) = node;
+        self.visit_expression(expr)
     }
 
     fn visit_if_statement(&mut self, _node: IfStatement) -> Result<Object> {

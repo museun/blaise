@@ -6,7 +6,7 @@ use std::io::{stdin, stdout};
 
 // builtins
 // TODO use a io::Read and io::Write as a backend
-pub(crate) fn write(data: Object) -> Result<Object, Error> {
+pub(crate) fn write(data: Object) -> Result<Object> {
     match data {
         Object::Primitive(Integer(n)) => print!("{}", n),
         Object::Primitive(String(s)) => print!("{}", s),
@@ -19,7 +19,7 @@ pub(crate) fn write(data: Object) -> Result<Object, Error> {
     Ok(Object::Unit)
 }
 
-pub(crate) fn writeln(data: Object) -> Result<Object, Error> {
+pub(crate) fn writeln(data: Object) -> Result<Object> {
     match data {
         Object::Primitive(Integer(n)) => println!("{}", n),
         Object::Primitive(String(s)) => println!("{}", s),
@@ -32,7 +32,7 @@ pub(crate) fn writeln(data: Object) -> Result<Object, Error> {
     Ok(Object::Unit)
 }
 
-pub(crate) fn readln() -> Result<Object, Error> {
+pub(crate) fn readln() -> Result<Object> {
     let mut buf = ::std::string::String::new();
     stdin()
         .read_line(&mut buf)

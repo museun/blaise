@@ -14,9 +14,9 @@ pub enum Object {
 
 #[derive(Debug, Clone)]
 pub enum Builtin {
-    Write(fn(Object) -> Result<Object, Error>),
-    WriteLn(fn(Object) -> Result<Object, Error>),
-    ReadLn(fn() -> Result<Object, Error>),
+    Write(fn(Object) -> Result<Object>),
+    WriteLn(fn(Object) -> Result<Object>),
+    ReadLn(fn() -> Result<Object>),
 }
 
 #[derive(Debug, Clone)]
@@ -52,21 +52,23 @@ impl From<bool> for Object {
 }
 
 impl Object {
-    pub fn unary_plus(&self) -> Result<Self, Error> {
+    pub fn unary_plus(&self) -> Result<Self> {
         match self {
             Prim(Integer(i)) => Ok((*i).into()),
+            Prim(Real(i)) => Ok((*i).into()),
             left => Self::error(left, None, OperatorError::UnaryAdd),
         }
     }
 
-    pub fn unary_minus(&self) -> Result<Self, Error> {
+    pub fn unary_minus(&self) -> Result<Self> {
         match self {
             Prim(Integer(i)) => Ok((-i).into()),
+            Prim(Real(i)) => Ok((-i).into()),
             left => Self::error(left, None, OperatorError::UnarySub),
         }
     }
 
-    pub fn negate(&self) -> Result<Self, Error> {
+    pub fn negate(&self) -> Result<Self> {
         match self {
             Prim(Boolean(i)) => Ok((!i).into()),
             left => Self::error(left, None, OperatorError::UnaryNot),
@@ -74,29 +76,56 @@ impl Object {
     }
 
     // binary
-    pub fn add(&self, other: &Self) -> Result<Self, Error> {
+    pub fn add(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Integer(left)), Prim(Integer(right))) => Ok((left + right).into()),
+
+            (Prim(Real(left)), Prim(Real(right))) => Ok((left + right).into()),
+            (Prim(Integer(left)), Prim(Real(right))) => {
+                Ok(((*left as f64) + (*right as f64)).into())
+            }
+            (Prim(Real(left)), Prim(Integer(right))) => {
+                Ok(((*left as f64) + (*right as f64)).into())
+            }
+
             (Prim(String(left)), Prim(String(right))) => Ok(format!("{}{}", left, right).into()),
             (left, right) => Self::error(left, Some(right), OperatorError::Add),
         }
     }
 
-    pub fn subtract(&self, other: &Self) -> Result<Self, Error> {
+    pub fn subtract(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Integer(left)), Prim(Integer(right))) => Ok((left - right).into()),
+
+            (Prim(Real(left)), Prim(Real(right))) => Ok((left - right).into()),
+            (Prim(Integer(left)), Prim(Real(right))) => {
+                Ok(((*left as f64) - (*right as f64)).into())
+            }
+            (Prim(Real(left)), Prim(Integer(right))) => {
+                Ok(((*left as f64) - (*right as f64)).into())
+            }
+
             (left, right) => Self::error(left, Some(right), OperatorError::Sub),
         }
     }
 
-    pub fn multiply(&self, other: &Self) -> Result<Self, Error> {
+    pub fn multiply(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Integer(left)), Prim(Integer(right))) => Ok((left * right).into()),
+
+            (Prim(Real(left)), Prim(Real(right))) => Ok((left * right).into()),
+            (Prim(Integer(left)), Prim(Real(right))) => {
+                Ok(((*left as f64) * (*right as f64)).into())
+            }
+            (Prim(Real(left)), Prim(Integer(right))) => {
+                Ok(((*left as f64) * (*right as f64)).into())
+            }
+
             (left, right) => Self::error(left, Some(right), OperatorError::Mul),
         }
     }
 
-    pub fn int_divide(&self, other: &Self) -> Result<Self, Error> {
+    pub fn int_divide(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Integer(left)), Prim(Integer(right))) => Ok((left / right).into()),
             (left, right) => Self::error(left, Some(right), OperatorError::IntDiv),
@@ -104,7 +133,7 @@ impl Object {
     }
 
     // real
-    pub fn real_divide(&self, other: &Self) -> Result<Self, Error> {
+    pub fn real_divide(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Real(left)), Prim(Real(right))) => Ok(((*left as f64) / (*right as f64)).into()),
             (Prim(Integer(left)), Prim(Integer(right))) => {
@@ -122,63 +151,115 @@ impl Object {
     }
     // real
 
-    pub fn and(&self, other: &Self) -> Result<Self, Error> {
+    pub fn and(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Boolean(left)), Prim(Boolean(right))) => Ok((*left && *right).into()),
             (left, right) => Self::error(left, Some(right), OperatorError::And),
         }
     }
 
-    pub fn or(&self, other: &Self) -> Result<Self, Error> {
+    pub fn or(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Boolean(left)), Prim(Boolean(right))) => Ok((*left || *right).into()),
             (left, right) => Self::error(left, Some(right), OperatorError::Or),
         }
     }
 
-    pub fn less_than(&self, other: &Self) -> Result<Self, Error> {
+    pub fn less_than(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Integer(left)), Prim(Integer(right))) => Ok((left < right).into()),
+
+            (Prim(Real(left)), Prim(Real(right))) => Ok((left < right).into()),
+            (Prim(Integer(left)), Prim(Real(right))) => {
+                Ok(((*left as f64) < (*right as f64)).into())
+            }
+            (Prim(Real(left)), Prim(Integer(right))) => {
+                Ok(((*left as f64) < (*right as f64)).into())
+            }
+
             (left, right) => Self::error(left, Some(right), OperatorError::LessThan),
         }
     }
 
-    pub fn greater_than(&self, other: &Self) -> Result<Self, Error> {
+    pub fn greater_than(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Integer(left)), Prim(Integer(right))) => Ok((left > right).into()),
+
+            (Prim(Real(left)), Prim(Real(right))) => Ok((left > right).into()),
+            (Prim(Integer(left)), Prim(Real(right))) => {
+                Ok(((*left as f64) > (*right as f64)).into())
+            }
+            (Prim(Real(left)), Prim(Integer(right))) => {
+                Ok(((*left as f64) > (*right as f64)).into())
+            }
+
             (left, right) => Self::error(left, Some(right), OperatorError::GreaterThan),
         }
     }
 
-    pub fn less_than_equal(&self, other: &Self) -> Result<Self, Error> {
+    pub fn less_than_equal(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Integer(left)), Prim(Integer(right))) => Ok((left <= right).into()),
+
+            (Prim(Real(left)), Prim(Real(right))) => Ok((left <= right).into()),
+            (Prim(Integer(left)), Prim(Real(right))) => {
+                Ok(((*left as f64) <= (*right as f64)).into())
+            }
+            (Prim(Real(left)), Prim(Integer(right))) => {
+                Ok(((*left as f64) <= (*right as f64)).into())
+            }
+
             (left, right) => Self::error(left, Some(right), OperatorError::LessThanEqual),
         }
     }
 
-    pub fn greater_than_equal(&self, other: &Self) -> Result<Self, Error> {
+    pub fn greater_than_equal(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Boolean(left)), Prim(Boolean(right))) => Ok((left >= right).into()),
+
+            (Prim(Real(left)), Prim(Real(right))) => Ok((left >= right).into()),
+            (Prim(Integer(left)), Prim(Real(right))) => {
+                Ok(((*left as f64) >= (*right as f64)).into())
+            }
+            (Prim(Real(left)), Prim(Integer(right))) => {
+                Ok(((*left as f64) >= (*right as f64)).into())
+            }
+
             (left, right) => Self::error(left, Some(right), OperatorError::GreaterThanEqual),
         }
     }
 
-    pub fn equal(&self, other: &Self) -> Result<Self, Error> {
+    pub fn equal(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Integer(left)), Prim(Integer(right))) => Ok((left == right).into()),
+
+            // (Prim(Real(left)), Prim(Real(right))) => Ok((left == right).into()),
+            // (Prim(Integer(left)), Prim(Real(right))) => {
+            //     Ok(((*left as f64) == (*right as f64)).into())
+            // }
+            // (Prim(Real(left)), Prim(Integer(right))) => {
+            //     Ok(((*left as f64) == (*right as f64)).into())
+            // }
             (left, right) => Self::error(left, Some(right), OperatorError::Equal),
         }
     }
 
-    pub fn not_equal(&self, other: &Self) -> Result<Self, Error> {
+    pub fn not_equal(&self, other: &Self) -> Result<Self> {
         match (self, other) {
             (Prim(Integer(left)), Prim(Integer(right))) => Ok((left != right).into()),
+
+            // (Prim(Real(left)), Prim(Real(right))) => Ok((left != right).into()),
+            // (Prim(Integer(left)), Prim(Real(right))) => {
+            //     Ok(((*left as f64) != (*right as f64)).into())
+            // }
+            // (Prim(Real(left)), Prim(Integer(right))) => {
+            //     Ok(((*left as f64) != (*right as f64)).into())
+            // }
             (left, right) => Self::error(left, Some(right), OperatorError::NotEqual),
         }
     }
 
-    fn error<T>(left: &Self, right: Option<&Self>, op: OperatorError) -> Result<T, Error> {
+    fn error<T>(left: &Self, right: Option<&Self>, op: OperatorError) -> Result<T> {
         Err(Error::InvalidOperation(op, left.clone(), right.cloned()))
     }
 }
