@@ -26,131 +26,133 @@ pub enum Primitive {
     Boolean(bool),
 }
 
+impl From<i32> for Object {
+    fn from(s: i32) -> Self {
+        Object::Primitive(Primitive::Integer(s))
+    }
+}
+
+impl From<RString> for Object {
+    fn from(s: RString) -> Self {
+        Object::Primitive(Primitive::String(s))
+    }
+}
+
+impl From<bool> for Object {
+    fn from(s: bool) -> Self {
+        Object::Primitive(Primitive::Boolean(s))
+    }
+}
+
 impl Object {
     pub fn unary_plus(&self) -> Result<Self, Error> {
         match self {
-            Prim(Integer(i)) => Ok(Prim(Integer(*i))),
-            t => Err(Error::InvalidOperation(
-                OperatorError::UnaryAdd,
-                t.clone(),
-                None,
-            )),
+            Prim(Integer(i)) => Ok((*i).into()),
+            left => Self::error(left, None, OperatorError::UnaryAdd),
         }
     }
+
     pub fn unary_minus(&self) -> Result<Self, Error> {
         match self {
-            Prim(Integer(i)) => Ok(Prim(Integer(-i))),
-            t => Err(Error::InvalidOperation(
-                OperatorError::UnarySub,
-                t.clone(),
-                None,
-            )),
+            Prim(Integer(i)) => Ok((-i).into()),
+            left => Self::error(left, None, OperatorError::UnarySub),
         }
     }
+
     pub fn negate(&self) -> Result<Self, Error> {
         match self {
-            Prim(Boolean(i)) => Ok(Prim(Boolean(!i))),
-            t => Err(Error::InvalidOperation(
-                OperatorError::UnaryNot,
-                t.clone(),
-                None,
-            )),
+            Prim(Boolean(i)) => Ok((!i).into()),
+            left => Self::error(left, None, OperatorError::UnaryNot),
         }
     }
 
     // binary
     pub fn add(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {
-            (Prim(Integer(left)), Prim(Integer(right))) => Ok(Prim(Integer(left + right))),
-            (Prim(String(left)), Prim(String(right))) => {
-                Ok(Prim(String(format!("{}{}", left, right))))
-            }
-            (left, right) => Self::error(left, right, OperatorError::Add),
+            (Prim(Integer(left)), Prim(Integer(right))) => Ok((left + right).into()),
+            (Prim(String(left)), Prim(String(right))) => Ok(format!("{}{}", left, right).into()),
+            (left, right) => Self::error(left, Some(right), OperatorError::Add),
         }
     }
 
     pub fn subtract(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {
-            (Prim(Integer(left)), Prim(Integer(right))) => Ok(Prim(Integer(left - right))),
-            (left, right) => Self::error(left, right, OperatorError::Sub),
+            (Prim(Integer(left)), Prim(Integer(right))) => Ok((left - right).into()),
+            (left, right) => Self::error(left, Some(right), OperatorError::Sub),
         }
     }
 
     pub fn multiply(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {
-            (Prim(Integer(left)), Prim(Integer(right))) => Ok(Prim(Integer(left * right))),
-            (left, right) => Self::error(left, right, OperatorError::Mul),
+            (Prim(Integer(left)), Prim(Integer(right))) => Ok((left * right).into()),
+            (left, right) => Self::error(left, Some(right), OperatorError::Mul),
         }
     }
 
     pub fn int_divide(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {
-            (Prim(Integer(left)), Prim(Integer(right))) => Ok(Prim(Integer(left / right))),
-            (left, right) => Self::error(left, right, OperatorError::IntDiv),
+            (Prim(Integer(left)), Prim(Integer(right))) => Ok((left / right).into()),
+            (left, right) => Self::error(left, Some(right), OperatorError::IntDiv),
         }
     }
 
     pub fn and(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {
-            (Prim(Boolean(left)), Prim(Boolean(right))) => Ok(Prim(Boolean(*left && *right))),
-            (left, right) => Self::error(left, right, OperatorError::And),
+            (Prim(Boolean(left)), Prim(Boolean(right))) => Ok((*left && *right).into()),
+            (left, right) => Self::error(left, Some(right), OperatorError::And),
         }
     }
 
     pub fn or(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {
-            (Prim(Boolean(left)), Prim(Boolean(right))) => Ok(Prim(Boolean(*left || *right))),
-            (left, right) => Self::error(left, right, OperatorError::Or),
+            (Prim(Boolean(left)), Prim(Boolean(right))) => Ok((*left || *right).into()),
+            (left, right) => Self::error(left, Some(right), OperatorError::Or),
         }
     }
 
     pub fn less_than(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {
-            (Prim(Integer(left)), Prim(Integer(right))) => Ok(Prim(Boolean(left < right))),
-            (left, right) => Self::error(left, right, OperatorError::LessThan),
+            (Prim(Integer(left)), Prim(Integer(right))) => Ok((left < right).into()),
+            (left, right) => Self::error(left, Some(right), OperatorError::LessThan),
         }
     }
 
     pub fn greater_than(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {
-            (Prim(Integer(left)), Prim(Integer(right))) => Ok(Prim(Boolean(left > right))),
-            (left, right) => Self::error(left, right, OperatorError::GreaterThan),
+            (Prim(Integer(left)), Prim(Integer(right))) => Ok((left > right).into()),
+            (left, right) => Self::error(left, Some(right), OperatorError::GreaterThan),
         }
     }
 
     pub fn less_than_equal(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {
-            (Prim(Integer(left)), Prim(Integer(right))) => Ok(Prim(Boolean(left <= right))),
-            (left, right) => Self::error(left, right, OperatorError::LessThanEqual),
+            (Prim(Integer(left)), Prim(Integer(right))) => Ok((left <= right).into()),
+            (left, right) => Self::error(left, Some(right), OperatorError::LessThanEqual),
         }
     }
 
     pub fn greater_than_equal(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {
-            (Prim(Boolean(left)), Prim(Boolean(right))) => Ok(Prim(Boolean(left >= right))),
-            (left, right) => Self::error(left, right, OperatorError::GreaterThanEqual),
+            (Prim(Boolean(left)), Prim(Boolean(right))) => Ok((left >= right).into()),
+            (left, right) => Self::error(left, Some(right), OperatorError::GreaterThanEqual),
         }
     }
 
     pub fn equal(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {
-            (Prim(Integer(left)), Prim(Integer(right))) => Ok(Prim(Boolean(left == right))),
-            (left, right) => Self::error(left, right, OperatorError::Equal),
+            (Prim(Integer(left)), Prim(Integer(right))) => Ok((left == right).into()),
+            (left, right) => Self::error(left, Some(right), OperatorError::Equal),
         }
     }
 
     pub fn not_equal(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {
-            (Prim(Integer(left)), Prim(Integer(right))) => Ok(Prim(Boolean(left != right))),
-            (left, right) => Self::error(left, right, OperatorError::NotEqual),
+            (Prim(Integer(left)), Prim(Integer(right))) => Ok((left != right).into()),
+            (left, right) => Self::error(left, Some(right), OperatorError::NotEqual),
         }
     }
 
-    fn error<T>(left: &Self, right: &Self, op: OperatorError) -> Result<T, Error> {
-        Err(Error::InvalidOperation(
-            op,
-            left.clone(),
-            Some(right.clone()),
-        ))
+    fn error<T>(left: &Self, right: Option<&Self>, op: OperatorError) -> Result<T, Error> {
+        Err(Error::InvalidOperation(op, left.clone(), right.cloned()))
     }
 }

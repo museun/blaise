@@ -200,9 +200,9 @@ impl Interpreter {
 
     fn visit_literal(&mut self, node: Literal) -> Result<Object, Error> {
         Ok(match node {
-            Literal::Integer(n) => Object::Primitive(Primitive::Integer(n)),
-            Literal::String(s) => Object::Primitive(Primitive::String(s)),
-            Literal::Boolean(b) => Object::Primitive(Primitive::Boolean(b)),
+            Literal::Integer(n) => n.into(),
+            Literal::String(s) => s.into(),
+            Literal::Boolean(b) => b.into(),
         })
     }
 
