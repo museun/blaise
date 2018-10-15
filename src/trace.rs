@@ -1,3 +1,5 @@
+use crate::*;
+
 use std::borrow::Cow;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -84,7 +86,8 @@ impl<'a> Tracer<'a> {
         let label: String = label.into();
         let label = label.into();
         if TRACER_ENABLED.load(::std::sync::atomic::Ordering::Relaxed) {
-            trace!("{}>{}", pad, label);
+            let pad = wrap_color!(colors::next_color(level()), "{}>", pad);
+            trace!("{}{}", pad, label);
         }
         indent();
         Tracer { label, pad }
@@ -95,7 +98,8 @@ impl<'a> Drop for Tracer<'a> {
     fn drop(&mut self) {
         dedent();
         if TRACER_ENABLED.load(::std::sync::atomic::Ordering::Relaxed) {
-            trace!("<{}{}", self.pad, self.label);
+            let pad = wrap_color!(colors::next_color(level()), "<{}", self.pad);
+            trace!("{}{}", pad, self.label);
         }
     }
 }

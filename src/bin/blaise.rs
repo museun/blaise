@@ -29,8 +29,13 @@ fn main() {
     let blaise_source = env::var("BLAISE_SOURCE").is_ok();
     let blaise_tokens = env::var("BLAISE_TOKENS").is_ok();
     let blaise_ast = env::var("BLAISE_AST").is_ok();
+
     if env::var("BLAISE_TRACE").is_ok() {
         enable_tracer()
+    }
+
+    if env::var("NO_COLOR").is_err() {
+        enable_colors()
     }
 
     let input = fs::read_to_string(&file).expect("read");
