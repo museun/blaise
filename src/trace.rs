@@ -16,11 +16,8 @@ macro_rules! defer {
 #[macro_export]
 macro_rules! traced {
     ($name:expr) => {
-        use crate::trace::{scoped, Tracer, TRACER_ENABLED};
-
-        if TRACER_ENABLED.load(::std::sync::atomic::Ordering::Relaxed) {
-            let _scoped = scoped(Tracer::new($name), |_| {});
-        }
+        use crate::trace::{scoped, Tracer};
+        let _scoped = scoped(Tracer::new($name), |_| {});
     };
 }
 
@@ -86,7 +83,9 @@ impl<'a> Tracer<'a> {
 
         let label: String = label.into();
         let label = label.into();
-        trace!("{}>{}", pad, label);
+        if TRACER_ENABLED.load(::std::sync::atomic::Ordering::Relaxed) {
+            trace!("{}>{}", pad, label);
+        }
         indent();
         Tracer { label, pad }
     }
@@ -95,6 +94,8 @@ impl<'a> Tracer<'a> {
 impl<'a> Drop for Tracer<'a> {
     fn drop(&mut self) {
         dedent();
-        trace!("<{}{}", self.pad, self.label);
+        if TRACER_ENABLED.load(::std::sync::atomic::Ordering::Relaxed) {
+            trace!("<{}{}", self.pad, self.label);
+        }
     }
 }
