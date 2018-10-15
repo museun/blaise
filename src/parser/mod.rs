@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use std::fmt;
 
 mod error;
 mod infix;
@@ -30,11 +29,13 @@ impl Parser {
         let mut tokens = self.tokens;
         match tokens.next() {
             Some(Token::EOF) => Ok(program),
+            // unexpected token
             Some(t) => Err(Error {
                 kind: ErrorKind::Unexpected(t),
                 span: tokens.span().clone(),
                 source: tokens.source().into(),
             }),
+            // EOF already seen
             None => Err(Error::new(
                 Token::EOF,
                 tokens.span().clone(),
@@ -47,8 +48,8 @@ impl Parser {
         traced!("program");
 
         self.expect_token("program")?;
-        let variable = self.expect(Self::variable, &[";"])?;
-        let block = self.expect(Self::block, &["."])?;
+        let variable = self.expect(Self::variable, ";")?;
+        let block = self.expect(Self::block, ".")?;
         Ok(Program(variable, block))
     }
 
@@ -106,13 +107,13 @@ impl Parser {
         let params = match self.tokens.peek() {
             Token::Symbol(Symbol::OpenParen) => {
                 self.tokens.advance();
-                self.expect(Self::formal_parameter_list, &[")"])?
+                self.expect(Self::formal_parameter_list, ")")?
             }
             _ => FormalParameterList(vec![]),
         };
 
         self.expect_token(";")?;
-        let block = self.expect(Self::block, &[";"])?;
+        let block = self.expect(Self::block, ";")?;
         Ok(ProcedureDeclaration(name, params, block))
     }
 
@@ -126,14 +127,14 @@ impl Parser {
         let params = match self.tokens.peek() {
             Token::Symbol(Symbol::OpenParen) => {
                 self.tokens.advance();
-                self.expect(Self::formal_parameter_list, &[")"])?
+                self.expect(Self::formal_parameter_list, ")")?
             }
             _ => FormalParameterList(vec![]),
         };
 
         self.expect_token(":")?;
-        let ty = self.expect(Self::ty, &[";"])?;
-        let block = self.expect(Self::block, &[";"])?;
+        let ty = self.expect(Self::ty, ";")?;
+        let block = self.expect(Self::block, ";")?;
         Ok(FunctionDeclaration(name, params, block, ty))
     }
 
@@ -147,7 +148,7 @@ impl Parser {
         }
 
         self.expect_token(":")?;
-        let ty = self.expect(Self::ty, &[";"])?;
+        let ty = self.expect(Self::ty, ";")?;
         Ok(VariableDeclaration(idents, ty))
     }
 
@@ -186,8 +187,10 @@ impl Parser {
 
     fn function_call(&mut self) -> Result<FunctionCall> {
         traced!("function_call");
-        let id = self.expect(Self::variable, &["("])?;
-        let params = self.expect(Self::call_params, &[")", ";"])?;
+        let id = self.expect(Self::variable, "(")?;
+        let params = self.expect(Self::call_params, ")")?;
+        self.expect_token(";")?;
+
         Ok(FunctionCall(id, params))
     }
 
@@ -268,8 +271,8 @@ impl Parser {
 
     fn assignment_statement(&mut self) -> Result<Assignment> {
         traced!("assignment_statement");
-        let var = self.expect(Self::variable, &[":="])?;
-        let expr = self.expect(|p| Self::expression(p, None), &[";"])?;
+        let var = self.expect(Self::variable, ":=")?;
+        let expr = self.expect(|p| Self::expression(p, None), ";")?;
         Ok(Assignment(var, expr))
     }
 
@@ -418,22 +421,22 @@ impl Parser {
         }
     }
 
-    fn expect<E, T, F>(&mut self, mut f: F, toks: impl AsRef<[T]>) -> Result<E>
+    fn expect<E, F>(&mut self, mut f: F, tok: impl Into<Token>) -> Result<E>
     where
-        T: Into<Token> + Clone + fmt::Debug,
         F: FnMut(&mut Parser) -> Result<E>,
     {
+        let tok = tok.into();
         traced!("expect");
         let res = f(self).map_err(|e| {
-            trace!("expected: {:?}", toks.as_ref());
+            trace!("expected: {:?}", tok);
             e
         })?;
-        for tok in toks.as_ref() {
-            self.expect_token(tok.clone()).map_err(|e| {
-                trace!("expected: {:?}", tok);
-                e
-            })?;
-        }
+
+        self.expect_token(tok.clone()).map_err(|e| {
+            trace!("expected: {:?}", tok);
+            e
+        })?;
+
         Ok(res)
     }
 

@@ -61,10 +61,6 @@ pub fn next_color(current: usize) -> Color {
 }
 
 impl Color {
-    pub const fn len() -> usize {
-        7 * 2
-    }
-
     pub const fn reset() -> &'static str {
         "\x1B[m"
     }
