@@ -75,6 +75,7 @@ pub fn scan(file: &str, input: &str) -> Tokens {
 
 enum Error {
     UnknownToken,
+    InvalidDigits,
 }
 
 enum State {
@@ -163,18 +164,50 @@ fn identifier_lexer(stream: &mut Stream<'_>) -> State {
 }
 
 fn number_lexer(stream: &mut Stream<'_>) -> State {
+    use std::str::FromStr;
+
+    // TODO determine if we want to determine signed-ness here or not
     if !stream.current().is_ascii_digit() {
         return State::Yield;
     }
 
-    let mut skip = 0;
-    let input = stream
-        .take_while(char::is_ascii_digit)
-        .filter_map(|c| c.to_digit(10))
-        .inspect(|_| skip += 1)
-        .fold(0i32, |a, n| 10 * a + (n as i32));
+    let mut is_f = false;
+    let mut s = String::new();
+    loop {
+        let c = match stream.peek() {
+            Some(c) => c,
+            None => break,
+        };
 
-    State::Produce(skip - 1, Token::Number(input))
+        match c {
+            c if c.is_ascii_digit() => s.push(c),
+            'e' | 'E' | '.' => {
+                is_f = true;
+                s.push(c)
+            }
+            '+' | '-' => {
+                if let Some(n) = stream.at(stream.pos() + 1) {
+                    if is_f && n.is_ascii_digit() {
+                        s.push(c);
+                    } else {
+                        break;
+                    }
+                }
+            }
+            _ => break,
+        }
+        stream.advance(1)
+    }
+
+    if let Ok(n) = i64::from_str(&s) {
+        return State::Produce(s.len() - 1, Token::Number(n));
+    }
+
+    if let Ok(n) = f64::from_str(&s) {
+        return State::Produce(s.len() - 1, Token::Real(n));
+    }
+
+    State::Error(Error::InvalidDigits)
 }
 
 fn string_lexer(stream: &mut Stream<'_>) -> State {

@@ -445,7 +445,6 @@ impl Parser {
     fn expect_token(&mut self, tok: impl Into<Token>) -> Result<Token> {
         let tok = tok.into();
         traced!("expect_token", "{:?}", tok);
-        trace!("expecting: {:?}", tok);
         match self.tokens.peek() {
             ref t if *t == tok => {
                 self.tokens.advance();
@@ -551,7 +550,7 @@ mod tests {
                         ::std::fs::write("diff_r.txt", l.as_bytes()).expect("write");
                         ::std::fs::write("diff_l.txt", r.as_bytes()).expect("write");
 
-                        panic!("is not equal");
+                        panic!("{}\n---\n{}", l, r)
                     }
                 }
             }
@@ -559,7 +558,16 @@ mod tests {
     }
 
     fn make_parser(input: &str) -> Parser {
-        Parser::new(scan("", input))
+        // let _ = env_logger::Builder::from_default_env()
+        //     .default_format_timestamp(false)
+        //     .try_init();
+
+        enable_colors();
+        // enable_tracer();
+
+        let tokens = scan("", input);
+        eprintln!("{:#?}", tokens);
+        Parser::new(tokens)
     }
 
     #[test]

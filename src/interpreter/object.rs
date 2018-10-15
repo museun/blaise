@@ -21,13 +21,13 @@ pub enum Builtin {
 
 #[derive(Debug, Clone)]
 pub enum Primitive {
-    Integer(i32),
+    Integer(i64),
     String(RString),
     Boolean(bool),
 }
 
-impl From<i32> for Object {
-    fn from(s: i32) -> Self {
+impl From<i64> for Object {
+    fn from(s: i64) -> Self {
         Object::Primitive(Primitive::Integer(s))
     }
 }

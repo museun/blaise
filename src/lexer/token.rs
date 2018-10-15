@@ -8,7 +8,9 @@ pub enum Token {
 
     Identifier(String),
 
-    Number(i32),
+    Number(i64),
+    Real(f64),
+
     String(String),
 
     Type(Type),

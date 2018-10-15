@@ -23,6 +23,7 @@ impl<'a> Stream<'a> {
         Self { input, pos: 0 }
     }
 
+    /// this is an awful name. this peeks at current. not next
     pub fn peek(&self) -> Option<char> {
         self.at(self.pos())
     }
@@ -35,6 +36,7 @@ impl<'a> Stream<'a> {
         self.at(self.pos()).unwrap()
     }
 
+    /// this peeks at absolute
     pub fn at(&self, pos: usize) -> Option<char> {
         self.input.chars().nth(pos)
     }

@@ -94,7 +94,7 @@ pub struct BinaryExpression(pub Expression, pub BinaryOperator, pub Expression);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
-    Integer(i32),
+    Integer(i64),
     String(String),
     Boolean(bool),
 }
