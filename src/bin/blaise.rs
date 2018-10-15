@@ -6,6 +6,11 @@ use std::fs;
 
 use blaise::prelude::*;
 
+fn die(data: &str) -> ! {
+    eprintln!("{}", data);
+    ::std::process::exit(1)
+}
+
 fn main() {
     env_logger::Builder::from_default_env()
         .default_format_timestamp(false)
@@ -18,18 +23,26 @@ fn main() {
 
     let file = match args.next() {
         Some(file) => file,
-        None => {
-            eprintln!("usage: {} <file>", name);
-            ::std::process::exit(1)
-        }
+        None => die(&format!("usage: {} <file>", name)),
     };
 
+    let blaise_source = env::var("BLAISE_SOURCE").is_ok();
+    let blaise_tokens = env::var("BLAISE_TOKENS").is_ok();
+    let blaise_ast = env::var("BLAISE_AST").is_ok();
+    if env::var("BLAISE_TRACE").is_ok() {
+        enable_tracer()
+    }
+
     let input = fs::read_to_string(&file).expect("read");
-    eprintln!("{}\n", input);
+    if blaise_source {
+        eprintln!("{}\n", input);
+    }
 
     let mut tokens = scan(&file, &input);
     tokens.remove_comments();
-    eprintln!("{}", tokens);
+    if blaise_tokens {
+        eprintln!("{}", tokens);
+    }
 
     let parser = Parser::new(tokens);
     let program = match parser.parse() {
@@ -39,7 +52,9 @@ fn main() {
             ::std::process::exit(1);
         }
     };
-    eprintln!("{:#?}", program);
+    if blaise_ast {
+        eprintln!("{:#?}", program);
+    }
 
     let mut interpreter = Interpreter::new();
     interpreter.evaluate(program);

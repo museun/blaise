@@ -357,7 +357,7 @@ impl Parser {
         use self::Precendence::*;
         use crate::prelude::token::{Reserved::*, Symbol::*};
 
-        let op = match token {
+        match token {
             Token::Symbol(Plus) | Token::Symbol(Minus) => Some(Op(BinaryAdd)),
             Token::Symbol(Symbol::Mul) => Some(Op(BinaryMul)),
             Token::Reserved(Reserved::Div) => Some(Op(BinaryMul)),
@@ -372,8 +372,7 @@ impl Parser {
 
             Token::Symbol(OpenParen) => Some(InfixParser::FunctionCall(Call)),
             _ => None,
-        };
-        op
+        }
     }
 
     fn identifier(&mut self) -> Result<String> {

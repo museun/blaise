@@ -40,7 +40,7 @@ impl Token {
 impl<'a> From<&'a str> for Token {
     fn from(s: &'a str) -> Self {
         let msg = || format!("can't turn '{}' into a Token", s);
-        Token::try_parse(s).expect(&msg())
+        Token::try_parse(s).unwrap_or_else(|| panic!(msg()))
     }
 }
 
