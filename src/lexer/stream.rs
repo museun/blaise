@@ -7,7 +7,7 @@ pub struct Stream<'a> {
 }
 
 impl<'a> fmt::Debug for Stream<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Stream")
             .field("pos", &self.pos)
             .field("len", &self.input.len())

@@ -84,11 +84,11 @@ enum State {
     Produce(usize, Token),
 }
 
-fn unknown_lexer(_: &mut Stream) -> State {
+fn unknown_lexer(_: &mut Stream<'_>) -> State {
     State::Error(Error::UnknownToken)
 }
 
-fn whitespace_lexer(stream: &mut Stream) -> State {
+fn whitespace_lexer(stream: &mut Stream<'_>) -> State {
     let c = stream.current();
     if !c.is_ascii_whitespace() {
         return State::Yield;
@@ -106,7 +106,7 @@ fn whitespace_lexer(stream: &mut Stream) -> State {
     State::Consume(skip.checked_sub(1).or_else(|| Some(0)).unwrap())
 }
 
-fn symbol_lexer(stream: &mut Stream) -> State {
+fn symbol_lexer(stream: &mut Stream<'_>) -> State {
     fn is_symbol(c: char) -> bool {
         match c as u8 {
             b'\''...b'/' | b':'...b'>' | b'@' | b'['...b'^' | b'{'...b'}' => true,
@@ -151,7 +151,7 @@ fn symbol_lexer(stream: &mut Stream) -> State {
     State::Yield
 }
 
-fn identifier_lexer(stream: &mut Stream) -> State {
+fn identifier_lexer(stream: &mut Stream<'_>) -> State {
     let input = stream
         .take_while(char::is_ascii_alphanumeric)
         .collect::<String>();
@@ -162,7 +162,7 @@ fn identifier_lexer(stream: &mut Stream) -> State {
     State::Produce(input.len() - 1, Token::Identifier(input))
 }
 
-fn number_lexer(stream: &mut Stream) -> State {
+fn number_lexer(stream: &mut Stream<'_>) -> State {
     if !stream.current().is_ascii_digit() {
         return State::Yield;
     }
@@ -177,7 +177,7 @@ fn number_lexer(stream: &mut Stream) -> State {
     State::Produce(skip - 1, Token::Number(input))
 }
 
-fn string_lexer(stream: &mut Stream) -> State {
+fn string_lexer(stream: &mut Stream<'_>) -> State {
     if '\'' != stream.current() {
         return State::Yield;
     }
@@ -190,7 +190,7 @@ fn string_lexer(stream: &mut Stream) -> State {
     State::Produce(input.len() + 1, Token::String(input))
 }
 
-fn comment_lexer(stream: &mut Stream) -> State {
+fn comment_lexer(stream: &mut Stream<'_>) -> State {
     let c = stream.current();
     match c {
         '{' | '(' => {}
@@ -235,7 +235,7 @@ fn comment_lexer(stream: &mut Stream) -> State {
     State::Yield
 }
 
-fn type_lexer(stream: &mut Stream) -> State {
+fn type_lexer(stream: &mut Stream<'_>) -> State {
     const TYPES: &[(&str, Type); 3] = &[
         ("integer", Type::Integer),
         ("string", Type::String),
@@ -264,7 +264,7 @@ fn type_lexer(stream: &mut Stream) -> State {
     State::Yield
 }
 
-fn directive_lexer(_stream: &mut Stream) -> State {
+fn directive_lexer(_stream: &mut Stream<'_>) -> State {
     // TODO this
     State::Yield
 }

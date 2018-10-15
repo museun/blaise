@@ -163,7 +163,7 @@ impl Iterator for Tokens {
 impl ExactSizeIterator for Tokens {}
 
 impl fmt::Debug for Tokens {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Tokens")
             .field("position", &self.pos)
             .field("tokens", &self.data)
@@ -172,7 +172,7 @@ impl fmt::Debug for Tokens {
 }
 
 impl fmt::Display for Tokens {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{}", self.dump(&self.data))
     }
 }

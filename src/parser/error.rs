@@ -8,7 +8,7 @@ pub struct Error {
 }
 
 impl fmt::Debug for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let line = self.source.lines().nth(self.span.row() - 1).unwrap();
         let (data, adjusted) = midpoint(line, self.span.column() - 1, 80);
         writeln!(f, "{}", data)?;

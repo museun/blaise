@@ -211,7 +211,7 @@ impl Symbol {
 }
 
 impl fmt::Display for Symbol {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use self::Symbol::*;
         let s = match self {
             Plus => "+",
@@ -241,7 +241,7 @@ impl fmt::Display for Symbol {
 }
 
 impl fmt::Display for Reserved {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", format!("{:?}", self).to_ascii_lowercase())
     }
 }
