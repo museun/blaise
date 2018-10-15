@@ -149,6 +149,10 @@ impl Interpreter {
         }
     }
 
+    fn visit_group(&mut self, _node: GroupExpression) -> Result<Object, Error> {
+        unimplemented!()
+    }
+
     fn visit_if_statement(&mut self, _node: IfStatement) -> Result<Object, Error> {
         unimplemented!()
     }
@@ -167,6 +171,7 @@ impl Interpreter {
             Expression::Literal(expr) => self.visit_literal(expr),
             Expression::Variable(expr) => self.visit_variable(expr),
             Expression::FunctionCall(call) => self.visit_function_call(call),
+            Expression::Group(expr) => self.visit_group(*expr),
         }
     }
 

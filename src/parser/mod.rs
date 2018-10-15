@@ -337,6 +337,19 @@ impl Parser {
         }
     }
 
+    fn grouping(&mut self) -> Result<GroupExpression> {
+        match self.tokens.current() {
+            Token::Symbol(Symbol::OpenParen) => {
+                let expr = self.expression(None)?;
+                match self.tokens.next_token() {
+                    Token::Symbol(Symbol::CloseParen) => Ok(GroupExpression(expr)),
+                    t => self.unexpected(t),
+                }
+            }
+            t => self.unexpected(t),
+        }
+    }
+
     fn prefix_parser(&mut self, token: &Token) -> Option<PrefixParser> {
         traced!("prefix_parser");
         match token {
@@ -349,9 +362,13 @@ impl Parser {
             Token::Symbol(Symbol::Plus) | Token::Symbol(Symbol::Minus) => {
                 Some(PrefixParser::UnaryOperator(Precedence::UnaryLiteral))
             }
+
             Token::Reserved(Reserved::Not) => {
                 Some(PrefixParser::UnaryOperator(Precedence::UnaryBool))
             }
+
+            Token::Symbol(Symbol::OpenParen) => Some(PrefixParser::Grouping),
+
             Token::Identifier(_) => Some(PrefixParser::Variable),
             _ => None,
         }
@@ -573,7 +590,7 @@ mod tests {
         // enable_tracer();
 
         let tokens = scan("", input);
-        eprintln!("{:#?}", tokens);
+        eprintln!("{}", tokens);
         Parser::new(tokens)
     }
 
@@ -1097,6 +1114,41 @@ mod tests {
                 Ok(Expression::Literal(input.1.clone()))
             );
         }
+    }
+
+    #[test]
+    fn expr_grouped() {
+        let input = "(5 + 5)";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Group(Box::new(GroupExpression(
+                Expression::Binary(Box::new(BinaryExpression(
+                    Expression::Literal(Literal::Integer(5)),
+                    BinaryOperator::Plus,
+                    Expression::Literal(Literal::Integer(5)),
+                )))
+            ))))
+        );
+
+        let input = "(5 + (5 - 5))";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Group(Box::new(GroupExpression(
+                Expression::Binary(Box::new(BinaryExpression(
+                    Expression::Literal(Literal::Integer(5)),
+                    BinaryOperator::Plus,
+                    Expression::Group(Box::new(GroupExpression(Expression::Binary(Box::new(
+                        BinaryExpression(
+                            Expression::Literal(Literal::Integer(5)),
+                            BinaryOperator::Minus,
+                            Expression::Literal(Literal::Integer(5))
+                        )
+                    )))))
+                )))
+            ))))
+        )
     }
 
     #[test]

@@ -5,7 +5,7 @@ pub enum PrefixParser {
     Literal,
     Variable,
     UnaryOperator(Precedence),
-    // grouping (...)
+    Grouping,
 }
 
 impl PrefixParser {
@@ -14,6 +14,7 @@ impl PrefixParser {
             PrefixParser::Literal => Expression::Literal(parser.literal()?),
             PrefixParser::Variable => Expression::Variable(parser.variable_expr()?),
             PrefixParser::UnaryOperator(_) => Expression::Unary(Box::new(parser.unary_op()?)),
+            PrefixParser::Grouping => Expression::Group(Box::new(parser.grouping()?)),
         })
     }
 

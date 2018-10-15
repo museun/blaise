@@ -84,6 +84,7 @@ pub enum Expression {
     Literal(Literal),
     Variable(Variable),
     FunctionCall(FunctionCall),
+    Group(Box<GroupExpression>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -91,6 +92,9 @@ pub struct UnaryExpression(pub UnaryOperator, pub Expression);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BinaryExpression(pub Expression, pub BinaryOperator, pub Expression);
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GroupExpression(pub Expression);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
@@ -113,9 +117,7 @@ pub enum BinaryOperator {
     Minus,
     Mul,
     Div,
-
     RealDiv,
-
     And,
     Or,
     LessThan,
