@@ -2,8 +2,8 @@ use super::*;
 
 #[derive(Debug)]
 pub enum InfixParser {
-    BinaryOperator(Precendence),
-    FunctionCall(Precendence),
+    BinaryOperator(Precedence),
+    FunctionCall(Precedence),
 }
 
 impl InfixParser {

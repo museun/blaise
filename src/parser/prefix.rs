@@ -4,7 +4,7 @@ use super::*;
 pub enum PrefixParser {
     Literal,
     Variable,
-    UnaryOperator(Precendence),
+    UnaryOperator(Precedence),
     // grouping (...)
 }
 

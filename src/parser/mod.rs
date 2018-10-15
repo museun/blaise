@@ -341,10 +341,10 @@ impl Parser {
         match token {
             Token::Number(_) | Token::String(_) => Some(PrefixParser::Literal),
             Token::Symbol(Symbol::Plus) | Token::Symbol(Symbol::Minus) => {
-                Some(PrefixParser::UnaryOperator(Precendence::UnaryLiteral))
+                Some(PrefixParser::UnaryOperator(Precedence::UnaryLiteral))
             }
             Token::Reserved(Reserved::Not) => {
-                Some(PrefixParser::UnaryOperator(Precendence::UnaryBool))
+                Some(PrefixParser::UnaryOperator(Precedence::UnaryBool))
             }
             Token::Identifier(_) => Some(PrefixParser::Variable),
             _ => None,
@@ -354,7 +354,7 @@ impl Parser {
     fn infix_parser(&mut self, token: &Token) -> Option<InfixParser> {
         traced!("infix_parser");
         use self::InfixParser::BinaryOperator as Op;
-        use self::Precendence::*;
+        use self::Precedence::*;
         use crate::prelude::token::{Reserved::*, Symbol::*};
 
         match token {
@@ -485,7 +485,7 @@ impl Parser {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub enum Precendence {
+pub enum Precedence {
     Call = 7,
     UnaryLiteral = 6,
     BinaryMul = 5,

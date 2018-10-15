@@ -1,6 +1,5 @@
 use crate::prelude::*;
 
-// TODO carry the span into the AST
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program(pub Variable, pub Block);
 
