@@ -64,7 +64,7 @@ impl Parser {
     fn declarations(&mut self) -> Result<Vec<Declaration>> {
         traced!("declarations");
         let mut decls = vec![];
-        if let Token::Reserved(Reserved::Var) = self.tokens.peek() {
+        if let Token::Reserved(token::Reserved::Var) = self.tokens.peek() {
             self.tokens.advance();
 
             let mut vars = vec![];
@@ -165,18 +165,19 @@ impl Parser {
     fn statement(&mut self) -> Result<Statement> {
         traced!("statement");
         use self::Statement::*;
+        //use crate::prelude::token::Symbol;
 
         let res = match self.tokens.peek() {
-            Token::Reserved(Begin) => Compound(self.compound_statement()?),
+            Token::Reserved(Reserved::Begin) => Compound(self.compound_statement()?),
             Token::Identifier(_) => match self.tokens.peek_ahead(1).unwrap() {
-                Token::Symbol(OpenParen) => FunctionCall(self.function_call()?),
-                Token::Symbol(Assign) => Assignment(self.assignment_statement()?),
+                Token::Symbol(Symbol::OpenParen) => FunctionCall(self.function_call()?),
+                Token::Symbol(Symbol::Assign) => Assignment(self.assignment_statement()?),
                 t => {
                     self.tokens.advance();
                     self.unexpected(t)?
                 }
             },
-            Token::Reserved(If) => IfStatement(self.if_statement()?),
+            Token::Reserved(Reserved::If) => IfStatement(self.if_statement()?),
             t => self.unexpected(t)?,
         };
 
@@ -194,7 +195,7 @@ impl Parser {
         traced!("function_call_expr");
         let name = match left {
             Expression::Variable(name) => name,
-            e => self.error("expression isn't a variable")?,
+            _e => self.error("expression isn't a variable")?,
         };
 
         let params = if self.peek("(") {
@@ -354,7 +355,7 @@ impl Parser {
         traced!("infix_parser");
         use self::InfixParser::BinaryOperator as Op;
         use self::Precendence::*;
-        use crate::lexer::{Reserved::*, Symbol::*};
+        use crate::prelude::token::{Reserved::*, Symbol::*};
 
         let op = match token {
             Token::Symbol(Plus) | Token::Symbol(Minus) => Some(Op(BinaryAdd)),

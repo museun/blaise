@@ -138,12 +138,12 @@ fn symbol_lexer(stream: &mut Stream) -> State {
     };
 
     let s = ::std::str::from_utf8(&s).expect("valid utf-8");
-    let sym = Symbol::new(s);
+    let sym = token::Symbol::new(s);
     if sym.is_some() {
         return State::Produce(s.len() - 1, Token::Symbol(sym.unwrap()));
     }
 
-    let res = Reserved::new(s);
+    let res = token::Reserved::new(s);
     if res.is_some() {
         return State::Produce(s.len() - 1, Token::Reserved(res.unwrap()));
     }

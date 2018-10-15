@@ -17,6 +17,7 @@ impl PrefixParser {
         })
     }
 
+    #[allow(dead_code)]
     pub fn precedence(&self) -> u32 {
         if let PrefixParser::UnaryOperator(p) = *self {
             return p as u32;

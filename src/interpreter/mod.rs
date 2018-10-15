@@ -147,7 +147,7 @@ impl Interpreter {
         }
     }
 
-    fn visit_if_statement(&mut self, node: IfStatement) -> Result<Object, Error> {
+    fn visit_if_statement(&mut self, _node: IfStatement) -> Result<Object, Error> {
         unimplemented!()
     }
 

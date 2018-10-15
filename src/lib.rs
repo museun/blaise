@@ -44,6 +44,7 @@ use std::ops::{Deref, DerefMut};
 pub(crate) struct Scoped<T, F: FnMut(&mut T)>(T, F);
 
 #[inline]
+#[allow(dead_code)]
 pub(crate) fn scoped<T, F: FnMut(&mut T)>(val: T, func: F) -> Scoped<T, F> {
     Scoped { 0: val, 1: func }
 }

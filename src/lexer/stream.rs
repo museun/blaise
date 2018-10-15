@@ -39,6 +39,7 @@ impl<'a> Stream<'a> {
         self.input.chars().nth(pos)
     }
 
+    #[allow(dead_code)]
     pub fn seek(&mut self, pos: usize) {
         self.pos = pos;
     }
@@ -47,6 +48,7 @@ impl<'a> Stream<'a> {
         self.pos
     }
 
+    #[allow(dead_code)]
     pub fn eof(&self) -> bool {
         self.pos >= self.input.len()
     }

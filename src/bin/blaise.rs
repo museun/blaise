@@ -31,7 +31,7 @@ fn main() {
     tokens.remove_comments();
     eprintln!("{}", tokens);
 
-    let mut parser = Parser::new(tokens);
+    let parser = Parser::new(tokens);
     let program = match parser.parse() {
         Ok(program) => program,
         Err(err) => {

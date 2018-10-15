@@ -17,6 +17,7 @@ impl Scope {
         }
     }
 
+    #[allow(dead_code)]
     pub fn name(&self) -> &str {
         self.name.as_str()
     }
