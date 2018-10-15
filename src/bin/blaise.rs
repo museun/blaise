@@ -12,10 +12,6 @@ fn die(data: &str) -> ! {
 }
 
 fn main() {
-    env_logger::Builder::from_default_env()
-        .default_format_timestamp(false)
-        .init();
-
     let (name, mut args) = {
         let mut args = env::args();
         (args.next().unwrap(), args)
@@ -34,9 +30,20 @@ fn main() {
         enable_tracer()
     }
 
-    if env::var("NO_COLOR").is_err() {
+    let colors = env::var("NO_COLOR").is_err();
+    if colors {
         enable_colors()
     }
+
+    env_logger::Builder::from_default_env()
+        .default_format_timestamp(false)
+        .write_style(if colors {
+            // TODO maybe try parse_write_style incase the user does something different
+            env_logger::fmt::WriteStyle::Auto
+        } else {
+            env_logger::fmt::WriteStyle::Never
+        })
+        .init();
 
     let input = fs::read_to_string(&file).expect("read");
     if blaise_source {
