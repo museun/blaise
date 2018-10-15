@@ -9,6 +9,8 @@ use self::error::{Error, OperatorError};
 use self::object::{Builtin, Object, Primitive};
 use self::scope::Scope;
 
+type Result<T> = ::std::result::Result<T>;
+
 #[derive(Default)]
 pub struct Interpreter {
     scope: Option<Scope>,
@@ -27,7 +29,7 @@ impl Interpreter {
         }
     }
 
-    fn visit(&mut self, node: Program) -> Result<(), Error> {
+    fn visit(&mut self, node: Program) -> Result<()> {
         let Program(Variable(name), block) = node;
         self.enter(name);
         self.init()?;
@@ -36,13 +38,13 @@ impl Interpreter {
         Ok(())
     }
 
-    fn visit_block(&mut self, node: Block) -> Result<Object, Error> {
+    fn visit_block(&mut self, node: Block) -> Result<Object> {
         let Block(decls, comp) = node;
         self.visit_declarations(&decls)?;
         self.visit_compound(comp)
     }
 
-    fn visit_declarations(&mut self, node: &[Declaration]) -> Result<(), Error> {
+    fn visit_declarations(&mut self, node: &[Declaration]) -> Result<()> {
         for decl in node {
             match decl {
                 Declaration::Procedure(list) => {
@@ -61,7 +63,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn visit_procedure_declaration(&mut self, node: ProcedureDeclaration) -> Result<(), Error> {
+    fn visit_procedure_declaration(&mut self, node: ProcedureDeclaration) -> Result<()> {
         let ProcedureDeclaration(name, list, block) = node;
         let params = self.visit_formal_parameter_list(list)?;
         self.scope()?
@@ -69,7 +71,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn visit_function_declaration(&mut self, node: FunctionDeclaration) -> Result<(), Error> {
+    fn visit_function_declaration(&mut self, node: FunctionDeclaration) -> Result<()> {
         let FunctionDeclaration(name, list, block, ty) = node;
         let params = self.visit_formal_parameter_list(list)?;
         self.scope()?
@@ -77,10 +79,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn visit_formal_parameter_list(
-        &mut self,
-        node: FormalParameterList,
-    ) -> Result<Vec<String>, Error> {
+    fn visit_formal_parameter_list(&mut self, node: FormalParameterList) -> Result<Vec<String>> {
         let FormalParameterList(list) = node;
         let mut names = vec![];
         for param in list {
@@ -90,12 +89,12 @@ impl Interpreter {
         Ok(names)
     }
 
-    fn visit_formal_parameter(&mut self, node: FormalParameter) -> Result<Vec<String>, Error> {
+    fn visit_formal_parameter(&mut self, node: FormalParameter) -> Result<Vec<String>> {
         // TODO this
         Ok(node.0.to_vec())
     }
 
-    fn visit_compound(&mut self, node: Compound) -> Result<Object, Error> {
+    fn visit_compound(&mut self, node: Compound) -> Result<Object> {
         let Compound(list) = node;
         let mut obj = Object::Unit;
         for statement in list {
@@ -104,7 +103,7 @@ impl Interpreter {
         Ok(obj)
     }
 
-    fn visit_statement(&mut self, node: Statement) -> Result<Object, Error> {
+    fn visit_statement(&mut self, node: Statement) -> Result<Object> {
         match node {
             Statement::Compound(comp) => self.visit_compound(comp),
             Statement::Assignment(assign) => self.visit_assignment(assign),
@@ -114,7 +113,7 @@ impl Interpreter {
         }
     }
 
-    fn visit_function_call(&mut self, node: FunctionCall) -> Result<Object, Error> {
+    fn visit_function_call(&mut self, node: FunctionCall) -> Result<Object> {
         let FunctionCall(Variable(func), CallParams(params)) = node;
         match self.scope()?.get(func.clone()).cloned() {
             Some(Object::Function(name, args, block, _))
@@ -149,22 +148,22 @@ impl Interpreter {
         }
     }
 
-    fn visit_group(&mut self, _node: GroupExpression) -> Result<Object, Error> {
+    fn visit_group(&mut self, _node: GroupExpression) -> Result<Object> {
         unimplemented!()
     }
 
-    fn visit_if_statement(&mut self, _node: IfStatement) -> Result<Object, Error> {
+    fn visit_if_statement(&mut self, _node: IfStatement) -> Result<Object> {
         unimplemented!()
     }
 
-    fn visit_assignment(&mut self, node: Assignment) -> Result<Object, Error> {
+    fn visit_assignment(&mut self, node: Assignment) -> Result<Object> {
         let Assignment(Variable(name), expr) = node;
         let val = self.visit_expression(expr)?;
         self.scope()?.set(name, val.clone());
         Ok(val)
     }
 
-    fn visit_expression(&mut self, node: Expression) -> Result<Object, Error> {
+    fn visit_expression(&mut self, node: Expression) -> Result<Object> {
         match node {
             Expression::Unary(expr) => self.visit_unary_op(*expr),
             Expression::Binary(expr) => self.visit_binary_op(*expr),
@@ -175,7 +174,7 @@ impl Interpreter {
         }
     }
 
-    fn visit_unary_op(&mut self, node: UnaryExpression) -> Result<Object, Error> {
+    fn visit_unary_op(&mut self, node: UnaryExpression) -> Result<Object> {
         match node {
             UnaryExpression(UnaryOperator::Plus, expr) => self.visit_expression(expr)?.unary_plus(),
             UnaryExpression(UnaryOperator::Minus, expr) => {
@@ -185,7 +184,7 @@ impl Interpreter {
         }
     }
 
-    fn visit_binary_op(&mut self, node: BinaryExpression) -> Result<Object, Error> {
+    fn visit_binary_op(&mut self, node: BinaryExpression) -> Result<Object> {
         use crate::prelude::ast::{BinaryExpression as Ex, BinaryOperator as Op};
         let mut visit = |e| self.visit_expression(e);
         match node {
@@ -207,7 +206,7 @@ impl Interpreter {
         }
     }
 
-    fn visit_literal(&mut self, node: Literal) -> Result<Object, Error> {
+    fn visit_literal(&mut self, node: Literal) -> Result<Object> {
         Ok(match node {
             Literal::Integer(n) => n.into(),
             Literal::String(s) => s.into(),
@@ -216,7 +215,7 @@ impl Interpreter {
         })
     }
 
-    fn visit_variable(&mut self, node: Variable) -> Result<Object, Error> {
+    fn visit_variable(&mut self, node: Variable) -> Result<Object> {
         let Variable(name) = node;
         self.scope()?
             .get(&name)
@@ -224,7 +223,7 @@ impl Interpreter {
             .ok_or_else(|| Error::UnknownVariable(name))
     }
 
-    fn init(&mut self) -> Result<(), Error> {
+    fn init(&mut self) -> Result<()> {
         let scope = self.scope()?;
         scope.set("write", Object::Builtin(Builtin::Write(builtin::write)));
         scope.set(
@@ -246,7 +245,7 @@ impl Interpreter {
         self.scope = self.scope.take().and_then(|s| s.parent())
     }
 
-    fn scope(&mut self) -> Result<&mut Scope, Error> {
+    fn scope(&mut self) -> Result<&mut Scope> {
         self.scope.as_mut().ok_or_else(|| Error::UnknownScope)
     }
 }
