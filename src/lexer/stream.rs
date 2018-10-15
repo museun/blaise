@@ -1,10 +1,10 @@
+use std::fmt;
+
 #[derive(Clone)]
 pub struct Stream<'a> {
     input: &'a str,
     pos: usize,
 }
-
-use std::fmt;
 
 impl<'a> fmt::Debug for Stream<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

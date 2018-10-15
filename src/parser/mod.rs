@@ -1,68 +1,16 @@
-use crate::ast::*;
-use crate::span::Span;
-use crate::tokens::*;
-
-use std::borrow::Cow;
+use crate::prelude::*;
 use std::fmt;
 
-pub struct Error {
-    kind: ErrorKind,
-    span: Span,
-    source: String,
-}
+mod error;
+mod infix;
+mod prefix;
 
-impl fmt::Debug for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let line = self.source.lines().nth(self.span.row() - 1).unwrap();
-        let (data, adjusted) = midpoint(line, self.span.column() - 1, 80);
-        writeln!(f, "{}", data)?;
-        writeln!(f, "{}", draw_caret(adjusted));
-        write!(f, "{} {:?}", self.span, self.kind)
-    }
-}
+use self::ast::*;
+use self::infix::*;
+use self::prefix::*;
 
-impl Error {
-    pub fn new(kind: impl Into<ErrorKind>, span: Span, src: impl Into<String>) -> Self {
-        Self {
-            kind: kind.into(),
-            span,
-            source: src.into(),
-        }
-    }
-
-    pub fn kind(&self) -> &ErrorKind {
-        &self.kind
-    }
-
-    pub fn span(&self) -> &Span {
-        &self.span
-    }
-}
-
-#[derive(Debug)]
-pub enum ErrorKind {
-    Unknown(String),
-    Expected(Token),
-    Unexpected(Token),
-}
-
-impl From<Token> for ErrorKind {
-    fn from(token: Token) -> Self {
-        ErrorKind::Expected(token)
-    }
-}
-
-// bit of handwaving to convert a string into a token
-// it only handles Symbols and Reserved Keywords
-// or into a custom error message
-impl<'a> From<&'a str> for ErrorKind {
-    fn from(s: &'a str) -> Self {
-        if let Some(t) = Token::try_parse(s) {
-            return t.into();
-        }
-        ErrorKind::Unknown(s.into())
-    }
-}
+pub mod ast;
+pub use self::error::{Error, ErrorKind};
 
 type Result<T> = ::std::result::Result<T, Error>;
 
@@ -76,6 +24,8 @@ impl Parser {
     }
 
     pub fn parse(mut self) -> Result<Program> {
+        traced!("parsed");
+
         let program = self.program()?;
         let mut tokens = self.tokens;
         match tokens.next() {
@@ -94,6 +44,8 @@ impl Parser {
     }
 
     pub fn program(&mut self) -> Result<Program> {
+        traced!("program");
+
         self.expect_token("program")?;
         let variable = self.expect(Self::variable, &[";"])?;
         let block = self.expect(Self::block, &["."])?;
@@ -101,14 +53,16 @@ impl Parser {
     }
 
     pub fn block(&mut self) -> Result<Block> {
-        let decls = self.declarations()?;
+        traced!("block");
 
+        let decls = self.declarations()?;
         trace!("decls: {:#?}", decls);
         let compound = self.compound_statement()?;
         Ok(Block(decls, compound))
     }
 
     fn declarations(&mut self) -> Result<Vec<Declaration>> {
+        traced!("declarations");
         let mut decls = vec![];
         if let Token::Reserved(Reserved::Var) = self.tokens.peek() {
             self.tokens.advance();
@@ -143,6 +97,7 @@ impl Parser {
     }
 
     fn procedure_declaration(&mut self) -> Result<ProcedureDeclaration> {
+        traced!("procedure_declaration");
         // proc decl ::= PROC ID (LPAREN, list, RPAREN)? SEMI block
         self.expect_token("procedure")?;
         // TODO proc decl error
@@ -162,6 +117,7 @@ impl Parser {
     }
 
     fn function_declaration(&mut self) -> Result<FunctionDeclaration> {
+        traced!("function_declaration");
         // func decl ::= FUNC ID LPAREN list RPAREN COLON type SEMI block
         self.expect_token("function")?;
         // TODO func decl error
@@ -182,6 +138,7 @@ impl Parser {
     }
 
     fn variable_declaration(&mut self) -> Result<VariableDeclaration> {
+        traced!("variable_declaration");
         // var a,b,c,d : integer;
         // TODO identifier name
         let mut idents = vec![self.identifier()?];
@@ -195,6 +152,7 @@ impl Parser {
     }
 
     fn compound_statement(&mut self) -> Result<Compound> {
+        traced!("compound_statement");
         // begin stmt1; stmt2; end
         self.expect_token("begin")?;
         let mut statements = vec![];
@@ -205,24 +163,20 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statement> {
-        use crate::ast::Statement::*;
-        use crate::tokens::{
-            Reserved::{self, *},
-            Symbol::{self, *},
-            Token::*,
-        };
+        traced!("statement");
+        use self::Statement::*;
 
         let res = match self.tokens.peek() {
-            Reserved(Begin) => Compound(self.compound_statement()?),
-            Identifier(_) => match self.tokens.peek_ahead(1).unwrap() {
-                Symbol(OpenParen) => FunctionCall(self.function_call()?),
-                Symbol(Assign) => Assignment(self.assignment_statement()?),
+            Token::Reserved(Begin) => Compound(self.compound_statement()?),
+            Token::Identifier(_) => match self.tokens.peek_ahead(1).unwrap() {
+                Token::Symbol(OpenParen) => FunctionCall(self.function_call()?),
+                Token::Symbol(Assign) => Assignment(self.assignment_statement()?),
                 t => {
                     self.tokens.advance();
                     self.unexpected(t)?
                 }
             },
-            Reserved(If) => IfStatement(self.if_statement()?),
+            Token::Reserved(If) => IfStatement(self.if_statement()?),
             t => self.unexpected(t)?,
         };
 
@@ -230,12 +184,14 @@ impl Parser {
     }
 
     fn function_call(&mut self) -> Result<FunctionCall> {
+        traced!("function_call");
         let id = self.expect(Self::variable, &["("])?;
         let params = self.expect(Self::call_params, &[")", ";"])?;
         Ok(FunctionCall(id, params))
     }
 
     fn function_call_expr(&mut self, left: Expression) -> Result<FunctionCall> {
+        traced!("function_call_expr");
         let name = match left {
             Expression::Variable(name) => name,
             e => self.error("expression isn't a variable")?,
@@ -251,6 +207,7 @@ impl Parser {
     }
 
     fn if_statement(&mut self) -> Result<IfStatement> {
+        traced!("if_statement");
         // if_stmt ::= IF expr THEN comp_stmt (ELSE (if_stmt | comp_stmt))?
         self.expect_token("if")?;
         let expr = self.expression(None)?;
@@ -272,6 +229,7 @@ impl Parser {
     }
 
     fn call_params(&mut self) -> Result<CallParams> {
+        traced!("call_params");
         if self.peek(")") {
             self.tokens.advance();
             return Ok(CallParams(vec![]));
@@ -284,6 +242,7 @@ impl Parser {
     }
 
     fn formal_parameter_list(&mut self) -> Result<FormalParameterList> {
+        traced!("formal_parameter_list");
         let mut list = vec![];
         if let Token::Identifier(_) = self.tokens.peek() {
             list.push(self.formal_parameter()?);
@@ -295,6 +254,7 @@ impl Parser {
     }
 
     fn formal_parameter(&mut self) -> Result<FormalParameter> {
+        traced!("formal_parameter");
         let mut idents = vec![self.identifier()?];
         while self.consume(",") {
             idents.push(self.identifier()?)
@@ -306,12 +266,14 @@ impl Parser {
     }
 
     fn assignment_statement(&mut self) -> Result<Assignment> {
+        traced!("assignment_statement");
         let var = self.expect(Self::variable, &[":="])?;
         let expr = self.expect(|p| Self::expression(p, None), &[";"])?;
         Ok(Assignment(var, expr))
     }
 
     fn expression(&mut self, p: Option<u32>) -> Result<Expression> {
+        traced!("expression");
         let p = p.unwrap_or(0);
         let token = self.tokens.next_token();
 
@@ -319,10 +281,7 @@ impl Parser {
             .prefix_parser(&token)
             .ok_or_else(|| self.error::<(), _>(token).unwrap_err())?;
 
-        use std::collections::VecDeque;
-        // let mut stack = VecDeque::new();
         let mut lhs = parser.parse(self)?;
-        trace!("lhs: {:?}", lhs);
         while p < self.next_precedence() {
             let token = self.tokens.next_token();
             let parser = self
@@ -330,17 +289,17 @@ impl Parser {
                 .ok_or_else(|| self.error::<(), _>(token).unwrap_err())?;
             lhs = parser.parse(self, lhs)?;
         }
-
-        debug!("expr: {:#?}", lhs);
         Ok(lhs)
     }
 
     fn variable(&mut self) -> Result<Variable> {
+        traced!("variable");
         let id = self.identifier()?;
         Ok(Variable(id))
     }
 
     fn variable_expr(&mut self) -> Result<Variable> {
+        traced!("variable_expr");
         match self.tokens.current() {
             Token::Identifier(id) => Ok(Variable(id.clone())),
             t => self.unexpected(t),
@@ -348,6 +307,7 @@ impl Parser {
     }
 
     fn unary_op(&mut self) -> Result<UnaryExpression> {
+        traced!("unary_op");
         let op = match self.tokens.current() {
             Token::Symbol(Symbol::Plus) => UnaryOperator::Plus,
             Token::Symbol(Symbol::Minus) => UnaryOperator::Minus,
@@ -359,6 +319,7 @@ impl Parser {
     }
 
     fn literal(&mut self) -> Result<Literal> {
+        traced!("literal");
         Ok(match self.tokens.current() {
             Token::Number(n) => Literal::Integer(n),
             Token::String(s) => Literal::String(s.clone()),
@@ -366,7 +327,8 @@ impl Parser {
         })
     }
 
-    fn ty(&mut self) -> Result<crate::ast::Type> {
+    fn ty(&mut self) -> Result<Type> {
+        traced!("ty");
         match self.tokens.next_token() {
             Token::Type(t) => Ok(t.into()),
             t => self.unexpected(t)?,
@@ -374,6 +336,7 @@ impl Parser {
     }
 
     fn prefix_parser(&mut self, token: &Token) -> Option<PrefixParser> {
+        traced!("prefix_parser");
         match token {
             Token::Number(_) | Token::String(_) => Some(PrefixParser::Literal),
             Token::Symbol(Symbol::Plus) | Token::Symbol(Symbol::Minus) => {
@@ -388,34 +351,32 @@ impl Parser {
     }
 
     fn infix_parser(&mut self, token: &Token) -> Option<InfixParser> {
+        traced!("infix_parser");
         use self::InfixParser::BinaryOperator as Op;
         use self::Precendence::*;
-        use crate::tokens::{
-            Reserved::{self, *},
-            Symbol::{self, *},
-            Token::*,
-        };
+        use crate::lexer::{Reserved::*, Symbol::*};
 
         let op = match token {
-            Symbol(Plus) | Symbol(Minus) => Some(Op(BinaryAdd)),
-            Symbol(Symbol::Mul) => Some(Op(BinaryMul)),
-            Reserved(Reserved::Div) => Some(Op(BinaryMul)),
-            Reserved(And) | Reserved(Or) => Some(Op(BinaryBool)),
+            Token::Symbol(Plus) | Token::Symbol(Minus) => Some(Op(BinaryAdd)),
+            Token::Symbol(Symbol::Mul) => Some(Op(BinaryMul)),
+            Token::Reserved(Reserved::Div) => Some(Op(BinaryMul)),
+            Token::Reserved(And) | Token::Reserved(Or) => Some(Op(BinaryBool)),
 
-            Symbol(LessThan)
-            | Symbol(GreaterThan)
-            | Symbol(LessThanEqual)
-            | Symbol(GreaterThanEqual)
-            | Symbol(Equal)
-            | Symbol(NotEqual) => Some(Op(Relative)),
+            Token::Symbol(LessThan)
+            | Token::Symbol(GreaterThan)
+            | Token::Symbol(LessThanEqual)
+            | Token::Symbol(GreaterThanEqual)
+            | Token::Symbol(Equal)
+            | Token::Symbol(NotEqual) => Some(Op(Relative)),
 
-            Symbol(OpenParen) => Some(InfixParser::FunctionCall(Call)),
+            Token::Symbol(OpenParen) => Some(InfixParser::FunctionCall(Call)),
             _ => None,
         };
         op
     }
 
     fn identifier(&mut self) -> Result<String> {
+        traced!("identifier");
         match self.tokens.next().ok_or_else(|| Error {
             kind: ErrorKind::Unexpected(Token::EOF),
             span: self.tokens.span().clone(),
@@ -427,6 +388,7 @@ impl Parser {
     }
 
     fn next_precedence(&mut self) -> u32 {
+        traced!("next_precedence");
         let token = self.tokens.peek();
         match self.infix_parser(&token) {
             Some(pp) => pp.precedence(),
@@ -435,6 +397,7 @@ impl Parser {
     }
 
     fn consume(&mut self, tok: impl Into<Token>) -> bool {
+        traced!("consume");
         let tok = tok.into();
         match self.tokens.peek() {
             ref t if *t == tok => {
@@ -447,6 +410,7 @@ impl Parser {
 
     /// doesn't consume
     fn peek(&mut self, tok: impl Into<Token>) -> bool {
+        traced!("peek");
         let tok = tok.into();
         match self.tokens.peek() {
             ref t if *t == tok => true,
@@ -459,6 +423,7 @@ impl Parser {
         T: Into<Token> + Clone + fmt::Debug,
         F: FnMut(&mut Parser) -> Result<E>,
     {
+        traced!("expect");
         let res = f(self).map_err(|e| {
             trace!("expected: {:?}", toks.as_ref());
             e
@@ -474,6 +439,7 @@ impl Parser {
 
     // maybe this should peek
     fn expect_token(&mut self, tok: impl Into<Token>) -> Result<Token> {
+        traced!("expect_token");
         let tok = tok.into();
         trace!("expecting: {:?}", tok);
         match self.tokens.peek() {
@@ -488,6 +454,7 @@ impl Parser {
 
     // just to give it a better name
     fn expected<T>(&self, err: impl Into<ErrorKind>) -> Result<T> {
+        traced!("expected");
         self.error(err)
     }
 
@@ -495,6 +462,7 @@ impl Parser {
     where
         E: Into<Token> + Clone,
     {
+        traced!("unexpected");
         let span = self.tokens.span().clone();
         let err = err.into().clone();
         debug!("{}: unexpected token {:?}", span, err);
@@ -510,12 +478,24 @@ impl Parser {
     where
         E: Into<ErrorKind>,
     {
+        traced!("error");
         let span = self.tokens.span().clone();
         Err(Error::new(err, span, self.tokens.source()))
     }
 }
 
-trait BinaryOp {
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum Precendence {
+    Call = 7,
+    UnaryLiteral = 6,
+    BinaryMul = 5,
+    BinaryAdd = 4,
+    Relative = 3,
+    UnaryBool = 2,
+    BinaryBool = 1,
+}
+
+pub(crate) trait BinaryOp {
     fn as_binary_op(&self) -> Option<BinaryOperator>;
 }
 
@@ -547,159 +527,5 @@ impl BinaryOp for Reserved {
             Reserved::Div => BinaryOperator::Div,
             _ => return None,
         })
-    }
-}
-
-// Operator precedences shall be according to four classes of operators
-// as follows. The operator not shall have the highest precedence,
-// followed by the multiplying-operators, then the adding-operators and
-// signs, and finally, with the lowest precedence, the relational-
-// operators. Sequences of two or more operators of the same precedence
-// shall be left associative.
-
-#[derive(Debug)]
-enum PrefixParser {
-    Literal,
-    Variable,
-    UnaryOperator(Precendence),
-    // grouping (...)
-}
-
-impl PrefixParser {
-    pub fn parse(&self, parser: &mut Parser) -> Result<Expression> {
-        Ok(match self {
-            PrefixParser::Literal => Expression::Literal(parser.literal()?),
-            PrefixParser::Variable => Expression::Variable(parser.variable_expr()?),
-            PrefixParser::UnaryOperator(_) => Expression::Unary(Box::new(parser.unary_op()?)),
-        })
-    }
-
-    pub fn precedence(&self) -> u32 {
-        if let PrefixParser::UnaryOperator(p) = *self {
-            return p as u32;
-        }
-        0
-    }
-}
-
-#[derive(Debug)]
-enum InfixParser {
-    BinaryOperator(Precendence),
-    FunctionCall(Precendence),
-}
-
-impl InfixParser {
-    pub fn parse(&self, parser: &mut Parser, left: Expression) -> Result<Expression> {
-        Ok(match self {
-            InfixParser::BinaryOperator(_) => {
-                let op = self.binary_op(parser, left)?;
-                Expression::Binary(Box::new(op))
-            }
-
-            InfixParser::FunctionCall(_) => {
-                Expression::FunctionCall(parser.function_call_expr(left)?)
-            }
-        })
-    }
-
-    pub fn precedence(&self) -> u32 {
-        match *self {
-            InfixParser::BinaryOperator(p) | InfixParser::FunctionCall(p) => p as u32,
-        }
-    }
-
-    fn binary_op(&self, parser: &mut Parser, expr: Expression) -> Result<BinaryExpression> {
-        use self::BinaryOperator as Op;
-        use crate::tokens::{
-            Reserved::*,
-            Symbol::*,
-            Token::{Reserved, Symbol},
-        };
-
-        let t = parser.tokens.current();
-        let op = match t {
-            Symbol(s) => s
-                .as_binary_op()
-                .ok_or_else(|| parser.unexpected::<(), _>(t).unwrap_err())?,
-
-            Reserved(s) => s
-                .as_binary_op()
-                .ok_or_else(|| parser.unexpected::<(), _>(t).unwrap_err())?,
-
-            t => parser.unexpected(t)?,
-        };
-
-        let p = self.precedence();
-        Ok(BinaryExpression(expr, op, parser.expression(Some(p))?))
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-enum Precendence {
-    Call = 7,
-    UnaryLiteral = 6,
-    BinaryMul = 5,
-    BinaryAdd = 4,
-    Relative = 3,
-    UnaryBool = 2,
-    BinaryBool = 1,
-}
-
-fn midpoint(input: &str, cursor: usize, width: usize) -> (&str, usize) {
-    let half = width / 2;
-    if input.len() > width {
-        if cursor < half {
-            (&input[..half], cursor)
-        } else {
-            (&input[cursor - half..], half)
-        }
-    } else {
-        (input, cursor)
-    }
-}
-
-fn draw_caret(width: usize) -> String {
-    let s = ::std::iter::repeat(" ").take(width).collect::<String>();
-    format!("{}^", s)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ast::*;
-    use crate::*;
-
-    fn new_parser(input: &str) -> Parser {
-        let mut tokens = Lexer::scan("stdin", &input);
-        tokens.remove_comments();
-        Parser::new(tokens)
-    }
-
-    macro_rules! check {
-        ($l:expr, $($p:pat)|*) => {
-            match $l {
-                $($p)|* => (),
-                ref result => panic!("expected: {}, got: {:?}", stringify!($($p)|*), result),
-            }
-        };
-    }
-
-    #[test]
-    fn program() {
-        let _ = env_logger::Builder::from_default_env()
-            .default_format_timestamp(false)
-            .try_init();
-
-        let input = r#"
-        program test;
-        begin 
-        end.
-        "#;
-
-        let mut parser = new_parser(input);
-        let ast = parser.program().expect("to parse a program");
-
-        check!(ast, Program(_, _));
-        eprintln!("{:#?}", ast);
     }
 }

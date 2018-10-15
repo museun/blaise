@@ -4,7 +4,7 @@ extern crate log;
 use std::env;
 use std::fs;
 
-use blaise::*;
+use blaise::prelude::*;
 
 fn main() {
     env_logger::Builder::from_default_env()
@@ -27,12 +27,12 @@ fn main() {
     let input = fs::read_to_string(&file).expect("read");
     eprintln!("{}\n", input);
 
-    let mut tokens = Lexer::scan(&file, &input);
+    let mut tokens = scan(&file, &input);
     tokens.remove_comments();
     eprintln!("{}", tokens);
 
     let mut parser = Parser::new(tokens);
-    let program = match parser.program() {
+    let program = match parser.parse() {
         Ok(program) => program,
         Err(err) => {
             error!("\n{:?}", err);

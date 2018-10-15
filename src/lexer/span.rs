@@ -1,3 +1,5 @@
+use crate::count_digits;
+
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -36,18 +38,4 @@ impl fmt::Display for Span {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}:{}:{}", self.file, self.row, self.col)
     }
-}
-
-#[inline(always)]
-fn count_digits(mut n: usize) -> usize {
-    if n == 0 {
-        return 1;
-    }
-
-    let mut x = 0;
-    while n > 0 {
-        n /= 10;
-        x += 1;
-    }
-    x
 }

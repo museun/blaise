@@ -1,70 +1,76 @@
-use super::span::Span;
-use super::stream::Stream;
-use super::tokens::{self, Token, Tokens};
+mod span;
+mod stream;
+mod tokens;
 
-pub struct Lexer;
-impl Lexer {
-    pub fn scan(file: &str, input: &str) -> Tokens {
-        let lexers = [
-            whitespace_lexer,
-            directive_lexer,
-            comment_lexer,
-            number_lexer,
-            string_lexer,
-            symbol_lexer,
-            type_lexer,
-            identifier_lexer,
-            unknown_lexer,
-        ];
+use self::stream::Stream;
+use self::token::Type;
 
-        let mut data = vec![];
+pub mod token;
 
-        let (mut col, mut row, mut skip) = (1, 0, 0);
-        let mut stream = Stream::new(input);
+pub use self::span::Span;
+pub use self::token::{Reserved, Symbol, Token};
+pub use self::tokens::Tokens;
 
-        for c in input.chars() {
-            row += 1;
-            if c == '\n' {
-                row = 0;
-                col += 1;
-            }
+pub fn scan(file: &str, input: &str) -> Tokens {
+    let lexers = [
+        whitespace_lexer,
+        directive_lexer,
+        comment_lexer,
+        number_lexer,
+        string_lexer,
+        symbol_lexer,
+        type_lexer,
+        identifier_lexer,
+        unknown_lexer,
+    ];
 
-            if skip > 0 {
-                skip -= 1;
-                stream.advance(1);
-                continue;
-            }
+    let mut data = vec![];
 
-            let span = Span::new(file, col, row);
-            let mut error = None;
-            'inner: for lexer in &lexers {
-                match lexer(&mut stream.clone()) {
-                    State::Yield => continue,
-                    State::Error(err) => error = Some(err),
-                    State::Consume(n) => skip += n,
-                    State::Produce(n, Token::Comment(_, end)) => {
-                        skip += n;
-                        data.push((span.clone(), Token::Comment(row, row + end)))
-                    }
-                    State::Produce(n, token) => {
-                        skip += n;
-                        data.push((span.clone(), token))
-                    }
-                }
-                break 'inner;
-            }
+    let (mut col, mut row, mut skip) = (1, 0, 0);
+    let mut stream = Stream::new(input);
 
-            match error {
-                Some(Error::UnknownToken) => data.push((span, Token::Unknown)),
-                _e => {}
-            }
-
-            stream.advance(1);
+    for c in input.chars() {
+        row += 1;
+        if c == '\n' {
+            row = 0;
+            col += 1;
         }
 
-        data.push((Span::new(file, col, row), Token::EOF));
-        Tokens::new(data, input.into())
+        if skip > 0 {
+            skip -= 1;
+            stream.advance(1);
+            continue;
+        }
+
+        let span = Span::new(file, col, row);
+        let mut error = None;
+        'inner: for lexer in &lexers {
+            match lexer(&mut stream.clone()) {
+                State::Yield => continue,
+                State::Error(err) => error = Some(err),
+                State::Consume(n) => skip += n,
+                State::Produce(n, Token::Comment(_, end)) => {
+                    skip += n;
+                    data.push((span.clone(), Token::Comment(row, row + end)))
+                }
+                State::Produce(n, token) => {
+                    skip += n;
+                    data.push((span.clone(), token))
+                }
+            }
+            break 'inner;
+        }
+
+        match error {
+            Some(Error::UnknownToken) => data.push((span, Token::Unknown)),
+            _e => {}
+        }
+
+        stream.advance(1);
     }
+
+    data.push((Span::new(file, col, row), Token::EOF));
+    Tokens::new(data, input.into())
 }
 
 enum Error {
@@ -132,12 +138,12 @@ fn symbol_lexer(stream: &mut Stream) -> State {
     };
 
     let s = ::std::str::from_utf8(&s).expect("valid utf-8");
-    let sym = tokens::Symbol::new(s);
+    let sym = Symbol::new(s);
     if sym.is_some() {
         return State::Produce(s.len() - 1, Token::Symbol(sym.unwrap()));
     }
 
-    let res = tokens::Reserved::new(s);
+    let res = Reserved::new(s);
     if res.is_some() {
         return State::Produce(s.len() - 1, Token::Reserved(res.unwrap()));
     }
@@ -230,10 +236,10 @@ fn comment_lexer(stream: &mut Stream) -> State {
 }
 
 fn type_lexer(stream: &mut Stream) -> State {
-    const TYPES: &[(&str, tokens::Type); 3] = &[
-        ("integer", tokens::Type::Integer),
-        ("string", tokens::Type::String),
-        ("bool", tokens::Type::Boolean),
+    const TYPES: &[(&str, Type); 3] = &[
+        ("integer", Type::Integer),
+        ("string", Type::String),
+        ("bool", Type::Boolean),
     ];
     let c = stream.current();
     if !c.is_ascii_alphabetic() {
@@ -259,5 +265,6 @@ fn type_lexer(stream: &mut Stream) -> State {
 }
 
 fn directive_lexer(_stream: &mut Stream) -> State {
+    // TODO this
     State::Yield
 }

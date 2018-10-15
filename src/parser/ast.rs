@@ -1,3 +1,5 @@
+use crate::prelude::*;
+
 // TODO carry the span into the AST
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program(pub Variable, pub Block);
@@ -113,12 +115,12 @@ pub enum Type {
     // Real,
 }
 
-impl From<crate::tokens::Type> for Type {
-    fn from(ty: crate::tokens::Type) -> Self {
+impl From<token::Type> for Type {
+    fn from(ty: token::Type) -> Self {
         match ty {
-            crate::tokens::Type::Integer => crate::ast::Type::Integer,
-            crate::tokens::Type::String => crate::ast::Type::String,
-            crate::tokens::Type::Boolean => crate::ast::Type::Boolean,
+            token::Type::Integer => Type::Integer,
+            token::Type::String => Type::String,
+            token::Type::Boolean => Type::Boolean,
         }
     }
 }
