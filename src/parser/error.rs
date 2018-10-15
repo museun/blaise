@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use std::fmt;
 
+#[derive(PartialEq)]
 pub struct Error {
     pub(crate) kind: ErrorKind,
     pub(crate) span: Span,
@@ -35,7 +36,7 @@ impl Error {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ErrorKind {
     Unknown(String),
     Expected(Token),

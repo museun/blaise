@@ -107,6 +107,10 @@ pub enum Reserved {
     Var,
     While,
     With,
+
+    // not in the spec but used in the spec.
+    True,
+    False,
 }
 
 impl Reserved {
@@ -148,6 +152,9 @@ impl Reserved {
             "var" => Var,
             "while" => While,
             "with" => With,
+
+            "true" => True,
+            "false" => False,
             _ => return None,
         };
         Some(res)

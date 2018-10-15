@@ -46,7 +46,6 @@ impl Parser {
 
     pub fn program(&mut self) -> Result<Program> {
         traced!("program");
-
         self.expect_token("program")?;
         let variable = self.expect(Self::variable, ";")?;
         let block = self.expect(Self::block, ".")?;
@@ -55,7 +54,6 @@ impl Parser {
 
     pub fn block(&mut self) -> Result<Block> {
         traced!("block");
-
         let decls = self.declarations()?;
         trace!("decls: {:#?}", decls);
         let compound = self.compound_statement()?;
@@ -65,15 +63,13 @@ impl Parser {
     fn declarations(&mut self) -> Result<Vec<Declaration>> {
         traced!("declarations");
         let mut decls = vec![];
+        let mut vars = vec![];
         if let Token::Reserved(token::Reserved::Var) = self.tokens.peek() {
             self.tokens.advance();
-
-            let mut vars = vec![];
             while let Token::Identifier(_) = self.tokens.peek() {
                 vars.push(self.variable_declaration()?)
             }
-            decls.push(Declaration::Variable(vars));
-            if decls.is_empty() {
+            if vars.is_empty() {
                 self.error("expected at least one variable decl after var")?
             }
         }
@@ -91,6 +87,7 @@ impl Parser {
             };
         }
 
+        decls.push(Declaration::Variable(vars));
         decls.push(Declaration::Procedure(procs));
         decls.push(Declaration::Function(funcs));
 
@@ -113,7 +110,7 @@ impl Parser {
         };
 
         self.expect_token(";")?;
-        let block = self.expect(Self::block, ";")?;
+        let block = self.block()?;
         Ok(ProcedureDeclaration(name, params, block))
     }
 
@@ -134,7 +131,7 @@ impl Parser {
 
         self.expect_token(":")?;
         let ty = self.expect(Self::ty, ";")?;
-        let block = self.expect(Self::block, ";")?;
+        let block = self.block()?;
         Ok(FunctionDeclaration(name, params, block, ty))
     }
 
@@ -154,11 +151,12 @@ impl Parser {
 
     fn compound_statement(&mut self) -> Result<Compound> {
         traced!("compound_statement");
-        // begin stmt1; stmt2; end
+        // begin stmt1; stmt2 end
         self.expect_token("begin")?;
-        let mut statements = vec![];
+        let mut statements = vec![self.statement()?];
         while !self.consume("end") {
-            statements.push(self.statement()?)
+            self.expect_token(";")?;
+            statements.push(self.statement()?);
         }
         Ok(Compound(statements))
     }
@@ -166,7 +164,6 @@ impl Parser {
     fn statement(&mut self) -> Result<Statement> {
         traced!("statement");
         use self::Statement::*;
-        //use crate::prelude::token::Symbol;
 
         let res = match self.tokens.peek() {
             Token::Reserved(Reserved::Begin) => Compound(self.compound_statement()?),
@@ -178,10 +175,10 @@ impl Parser {
                     self.unexpected(t)?
                 }
             },
-            Token::Reserved(Reserved::If) => IfStatement(self.if_statement()?),
+            Token::Reserved(Reserved::If) => IfStatement(Box::new(self.if_statement()?)),
+            Token::Reserved(Reserved::End) => Empty,
             t => self.unexpected(t)?,
         };
-
         Ok(res)
     }
 
@@ -189,8 +186,6 @@ impl Parser {
         traced!("function_call");
         let id = self.expect(Self::variable, "(")?;
         let params = self.expect(Self::call_params, ")")?;
-        self.expect_token(";")?;
-
         Ok(FunctionCall(id, params))
     }
 
@@ -217,17 +212,17 @@ impl Parser {
         let expr = self.expression(None)?;
 
         self.expect_token("then")?;
-        let compound = self.compound_statement()?;
+        let statement = self.statement()?;
 
         let res = if self.consume("else") {
             if self.peek("if") {
                 // don't eat the if
-                IfStatement::IfElseIf(expr, compound, Box::new(self.if_statement()?))
+                IfStatement::IfElseIf(expr, statement, Box::new(self.if_statement()?))
             } else {
-                IfStatement::IfElse(expr, compound, self.compound_statement()?)
+                IfStatement::IfElse(expr, statement, self.statement()?)
             }
         } else {
-            IfStatement::If(expr, compound)
+            IfStatement::If(expr, statement)
         };
         Ok(res)
     }
@@ -272,7 +267,7 @@ impl Parser {
     fn assignment_statement(&mut self) -> Result<Assignment> {
         traced!("assignment_statement");
         let var = self.expect(Self::variable, ":=")?;
-        let expr = self.expect(|p| Self::expression(p, None), ";")?;
+        let expr = self.expression(None)?;
         Ok(Assignment(var, expr))
     }
 
@@ -326,6 +321,8 @@ impl Parser {
         traced!("literal");
         Ok(match self.tokens.current() {
             Token::Number(n) => Literal::Integer(n),
+            Token::Reserved(Reserved::True) => Literal::Boolean(true),
+            Token::Reserved(Reserved::False) => Literal::Boolean(false),
             Token::String(s) => Literal::String(s.clone()),
             t => self.unexpected(t)?,
         })
@@ -342,7 +339,11 @@ impl Parser {
     fn prefix_parser(&mut self, token: &Token) -> Option<PrefixParser> {
         traced!("prefix_parser");
         match token {
-            Token::Number(_) | Token::String(_) => Some(PrefixParser::Literal),
+            Token::Number(_)
+            | Token::String(_)
+            | Token::Reserved(Reserved::True)
+            | Token::Reserved(Reserved::False) => Some(PrefixParser::Literal),
+
             Token::Symbol(Symbol::Plus) | Token::Symbol(Symbol::Minus) => {
                 Some(PrefixParser::UnaryOperator(Precedence::UnaryLiteral))
             }
@@ -400,8 +401,8 @@ impl Parser {
     }
 
     fn consume(&mut self, tok: impl Into<Token>) -> bool {
-        traced!("consume");
         let tok = tok.into();
+        traced!("consume", "{:?}", tok);
         match self.tokens.peek() {
             ref t if *t == tok => {
                 self.tokens.advance();
@@ -413,8 +414,8 @@ impl Parser {
 
     /// doesn't consume
     fn peek(&mut self, tok: impl Into<Token>) -> bool {
-        traced!("peek");
         let tok = tok.into();
+        traced!("peek", "{:?}", tok);
         match self.tokens.peek() {
             ref t if *t == tok => true,
             _ => false,
@@ -426,7 +427,7 @@ impl Parser {
         F: FnMut(&mut Parser) -> Result<E>,
     {
         let tok = tok.into();
-        traced!("expect");
+        traced!("expect", "{:?}", tok);
         let res = f(self).map_err(|e| {
             trace!("expected: {:?}", tok);
             e
@@ -442,8 +443,8 @@ impl Parser {
 
     // maybe this should peek
     fn expect_token(&mut self, tok: impl Into<Token>) -> Result<Token> {
-        traced!("expect_token");
         let tok = tok.into();
+        traced!("expect_token", "{:?}", tok);
         trace!("expecting: {:?}", tok);
         match self.tokens.peek() {
             ref t if *t == tok => {
@@ -465,11 +466,10 @@ impl Parser {
     where
         E: Into<Token> + Clone,
     {
-        traced!("unexpected");
         let span = self.tokens.span().clone();
         let err = err.into().clone();
+        traced!("unexpected", "{:?}", err);
         debug!("{}: unexpected token {:?}", span, err);
-
         Err(Error {
             kind: ErrorKind::Unexpected(err),
             span,
@@ -481,8 +481,9 @@ impl Parser {
     where
         E: Into<ErrorKind>,
     {
-        traced!("error");
         let span = self.tokens.span().clone();
+        let err = err.into();
+        traced!("error", "{:?}", err);
         Err(Error::new(err, span, self.tokens.source()))
     }
 }
@@ -530,5 +531,552 @@ impl BinaryOp for Reserved {
             Reserved::Div => BinaryOperator::Div,
             _ => return None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    macro_rules! assert_eq {
+        ($left:expr, $right:expr,) => {
+            assert_eq!($left, $right)
+        };
+        ($left:expr, $right:expr) => {
+            match (&($left), &($right)) {
+                (l, r) => {
+                    if !(*l == *r) {
+                        let l = format!("{:#?}", l);
+                        let r = format!("{:#?}", r);
+                        ::std::fs::write("diff_r.txt", l.as_bytes()).expect("write");
+                        ::std::fs::write("diff_l.txt", r.as_bytes()).expect("write");
+
+                        panic!("is not equal");
+                    }
+                }
+            }
+        };
+    }
+
+    fn make_parser(input: &str) -> Parser {
+        Parser::new(scan("", input))
+    }
+
+    #[test]
+    fn program() {
+        let mut parser = make_parser("program test; begin end.");
+        assert_eq!(
+            parser.program(),
+            Ok(Program(Variable("test".into()), Block::default()))
+        );
+    }
+
+    #[test]
+    fn block() {
+        let mut parser = make_parser("begin end");
+        assert_eq!(parser.block(), Ok(Block::default()));
+    }
+
+    #[test]
+    fn declarations() {
+        let input = "var a: integer; function b(): string; begin end procedure c; begin end";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.declarations(),
+            Ok(vec![
+                Declaration::Variable(vec![VariableDeclaration(vec!["a".into()], Type::Integer)]),
+                Declaration::Procedure(vec![ProcedureDeclaration(
+                    "c".into(),
+                    FormalParameterList::default(),
+                    Block::default(),
+                )]),
+                Declaration::Function(vec![FunctionDeclaration(
+                    "b".into(),
+                    FormalParameterList::default(),
+                    Block::default(),
+                    Type::String,
+                )]),
+            ])
+        );
+    }
+
+    #[test]
+    fn procedure_declaration() {
+        let input = "procedure test(); begin end";
+        let mut parser = make_parser(input);
+
+        let mut p = ProcedureDeclaration::default();
+        p.0 = "test".into();
+
+        assert_eq!(parser.procedure_declaration(), Ok(p));
+    }
+
+    #[test]
+    fn function_declaration() {
+        let input = "function test(): integer; begin end";
+        let mut parser = make_parser(input);
+
+        let mut f = FunctionDeclaration::default();
+        f.0 = "test".into();
+        f.3 = Type::Integer;
+
+        assert_eq!(parser.function_declaration(), Ok(f));
+    }
+
+    #[test]
+    fn variable_declaration() {
+        let input = "foo, bar, baz : integer;";
+        let mut parser = make_parser(input);
+
+        assert_eq!(
+            parser.variable_declaration(),
+            Ok(VariableDeclaration(
+                vec!["foo", "bar", "baz"]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>(),
+                Type::Integer
+            ))
+        );
+    }
+
+    #[test]
+    fn compound_statement() {
+        let input = "begin end";
+        let mut parser = make_parser(input);
+        assert_eq!(parser.compound_statement(), Ok(Compound::default()));
+    }
+
+    #[test]
+    fn assignment_statement() {
+        let input = "foo := 5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.assignment_statement(),
+            Ok(Assignment(
+                Variable("foo".into()),
+                Expression::Literal(Literal::Integer(5))
+            ))
+        );
+    }
+
+    #[test]
+    fn if_statement() {
+        let input = "if true then begin end";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.if_statement(),
+            Ok(IfStatement::If(
+                Expression::Literal(Literal::Boolean(true)),
+                Statement::Compound(Compound::default())
+            ))
+        );
+    }
+
+    #[test]
+    fn if_else_statement() {
+        let input = "if false then begin end else begin end";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.if_statement(),
+            Ok(IfStatement::IfElse(
+                Expression::Literal(Literal::Boolean(false)),
+                Statement::Compound(Compound::default()),
+                Statement::Compound(Compound::default())
+            ))
+        );
+    }
+
+    #[test]
+    fn if_else_if_statement() {
+        let input = r#"if false then 
+                begin end 
+            else if true then
+                begin end 
+            else if true then 
+                begin end"#;
+
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.if_statement(),
+            Ok(IfStatement::IfElseIf(
+                Expression::Literal(Literal::Boolean(false)),
+                Statement::Compound(Compound::default()),
+                Box::new(IfStatement::IfElseIf(
+                    Expression::Literal(Literal::Boolean(true)),
+                    Statement::Compound(Compound::default()),
+                    Box::new(IfStatement::If(
+                        Expression::Literal(Literal::Boolean(true)),
+                        Statement::Compound(Compound::default())
+                    ))
+                ))
+            ))
+        );
+    }
+
+    #[test]
+    fn if_else_if_else_statement() {
+        let input = r#"if false then 
+                begin end 
+            else if true then
+                begin end 
+            else if true then 
+                begin end
+            else begin end"#;
+
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.if_statement(),
+            Ok(IfStatement::IfElseIf(
+                Expression::Literal(Literal::Boolean(false)),
+                Statement::Compound(Compound::default()),
+                Box::new(IfStatement::IfElseIf(
+                    Expression::Literal(Literal::Boolean(true)),
+                    Statement::Compound(Compound::default()),
+                    Box::new(IfStatement::IfElse(
+                        Expression::Literal(Literal::Boolean(true)),
+                        Statement::Compound(Compound::default()),
+                        Statement::Compound(Compound::default())
+                    ))
+                ))
+            ))
+        );
+    }
+
+    #[test]
+    fn variable() {
+        let input = "foo";
+        let mut parser = make_parser(input);
+        assert_eq!(parser.variable(), Ok(Variable("foo".into())));
+    }
+
+    #[test]
+    fn literal() {
+        let input = "42";
+        let mut parser = make_parser(input);
+        assert_eq!(parser.literal(), Ok(Literal::Integer(42)));
+
+        let input = "'foobar'";
+        let mut parser = make_parser(input);
+        assert_eq!(parser.literal(), Ok(Literal::String("foobar".into())));
+
+        let input = "false";
+        let mut parser = make_parser(input);
+        assert_eq!(parser.literal(), Ok(Literal::Boolean(false)));
+    }
+
+    #[test]
+    fn call_params() {
+        let input = "foo, bar, 21 * 2";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.call_params(),
+            Ok(CallParams(vec![
+                Expression::Variable(Variable("foo".into())),
+                Expression::Variable(Variable("bar".into())),
+                Expression::Binary(Box::new(BinaryExpression(
+                    Expression::Literal(Literal::Integer(21)),
+                    BinaryOperator::Mul,
+                    Expression::Literal(Literal::Integer(2)),
+                )))
+            ]))
+        );
+    }
+
+    #[test]
+    fn function_call() {
+        let input = "test(foo, bar, 21 * 2);";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.function_call(),
+            Ok(FunctionCall(
+                Variable("test".into(),),
+                CallParams(vec![
+                    Expression::Variable(Variable("foo".into())),
+                    Expression::Variable(Variable("bar".into())),
+                    Expression::Binary(Box::new(BinaryExpression(
+                        Expression::Literal(Literal::Integer(21)),
+                        BinaryOperator::Mul,
+                        Expression::Literal(Literal::Integer(2)),
+                    )))
+                ])
+            ))
+        );
+    }
+
+    #[test]
+    fn formal_parameter_list() {
+        let input = "a: integer; b: string; c,d: bool";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.formal_parameter_list(),
+            Ok(FormalParameterList(vec![
+                FormalParameter(vec!["a".into()], Type::Integer),
+                FormalParameter(vec!["b".into()], Type::String),
+                FormalParameter(vec!["c".into(), "d".into()], Type::Boolean),
+            ]))
+        );
+    }
+
+    #[test]
+    fn formal_parameter() {
+        let input = "a,b,c : bool";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.formal_parameter(),
+            Ok(FormalParameter(
+                vec!["a".into(), "b".into(), "c".into()],
+                Type::Boolean
+            ),)
+        );
+    }
+
+    #[test]
+    fn expr_unary_plus() {
+        let input = "+5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Unary(Box::new(UnaryExpression(
+                UnaryOperator::Plus,
+                Expression::Literal(Literal::Integer(5))
+            ))))
+        );
+    }
+
+    #[test]
+    fn expr_unary_minus() {
+        let input = "-5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Unary(Box::new(UnaryExpression(
+                UnaryOperator::Minus,
+                Expression::Literal(Literal::Integer(5))
+            ))))
+        );
+    }
+
+    #[test]
+    fn expr_binary_plus() {
+        let input = "5+5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::Plus,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_binary_minus() {
+        let input = "5-5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::Minus,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_binary_mul() {
+        let input = "5*5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::Mul,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_binary_div() {
+        let input = "5 div 5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::Div,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_binary_and() {
+        let input = "5 and 5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::And,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_binary_or() {
+        let input = "5 or 5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::Or,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_binary_lessthan() {
+        let input = "5 < 5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::LessThan,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_binary_greaterthan() {
+        let input = "5 > 5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::GreaterThan,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_binary_lessthanequal() {
+        let input = "5 <= 5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::LessThanEqual,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_binary_greaterthanequal() {
+        let input = "5 >= 5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::GreaterThanEqual,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_binary_equal() {
+        let input = "5 = 5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::Equal,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_binary_notequal() {
+        let input = "5 <> 5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::NotEqual,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_function_call() {
+        let input = "test()";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::FunctionCall(FunctionCall(
+                Variable("test".into()),
+                CallParams::default()
+            )))
+        );
+    }
+
+    #[test]
+    fn expr_variable() {
+        let input = "test";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Variable(Variable("test".into())))
+        );
+    }
+
+    #[test]
+    fn expr_literal() {
+        let input = "'test'";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Literal(Literal::String("test".into())))
+        );
+    }
+
+    #[test]
+    fn ty() {
+        let input = "integer";
+        let mut parser = make_parser(input);
+        assert_eq!(parser.ty(), Ok(Type::Integer));
+
+        let input = "string";
+        let mut parser = make_parser(input);
+        assert_eq!(parser.ty(), Ok(Type::String));
+
+        let input = "bool";
+        let mut parser = make_parser(input);
+        assert_eq!(parser.ty(), Ok(Type::Boolean));
+    }
+
+    #[test]
+    fn identifier() {
+        let input = "foobar";
+        let mut parser = make_parser(input);
+        assert_eq!(parser.identifier(), Ok("foobar".into()));
     }
 }

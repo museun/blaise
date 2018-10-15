@@ -109,7 +109,8 @@ impl Interpreter {
             Statement::Compound(comp) => self.visit_compound(comp),
             Statement::Assignment(assign) => self.visit_assignment(assign),
             Statement::FunctionCall(call) => self.visit_function_call(call),
-            Statement::IfStatement(stmt) => self.visit_if_statement(stmt),
+            Statement::IfStatement(stmt) => self.visit_if_statement(*stmt),
+            Statement::Empty => Ok(Object::Unit),
         }
     }
 

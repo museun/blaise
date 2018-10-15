@@ -64,7 +64,7 @@ impl Tokens {
 
     pub fn current(&self) -> Token {
         self.data
-            .get(self.pos - 1)
+            .get(self.pos.checked_sub(1).unwrap_or(0))
             .map(|(_, t)| t)
             .cloned()
             .expect("not eof")

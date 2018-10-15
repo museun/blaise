@@ -19,7 +19,12 @@ macro_rules! defer {
 macro_rules! traced {
     ($name:expr) => {
         use crate::trace::{scoped, Tracer};
-        let _scoped = scoped(Tracer::new($name), |_| {});
+        let _scoped = scoped(Tracer::new($name, "".to_string()), |_| {});
+    };
+
+    ($name:expr, $fmt:expr, $($arg:tt)*) => {
+        use crate::trace::{scoped, Tracer};
+        let _scoped = scoped(Tracer::new($name, format!($fmt, $($arg)*)), |_| {});
     };
 }
 
@@ -73,24 +78,26 @@ pub fn level() -> usize {
 
 pub struct Tracer<'a> {
     label: Cow<'a, str>,
+    data: Cow<'a, str>,
     pad: Cow<'a, str>,
 }
 
 impl<'a> Tracer<'a> {
-    pub fn new(label: &str) -> Self {
+    pub fn new(label: &str, data: String) -> Self {
         let pad = ::std::iter::repeat(".")
             .take(level())
             .collect::<String>()
             .into();
 
+        let data = data.into();
         let label: String = label.into();
         let label = label.into();
         if TRACER_ENABLED.load(::std::sync::atomic::Ordering::Relaxed) {
             let pad = wrap_color!(colors::next_color(level()), "{}>", pad);
-            trace!("{}{}", pad, label);
+            eprintln!("{}{}: {}", pad, label, data);
         }
         indent();
-        Tracer { label, pad }
+        Tracer { label, pad, data }
     }
 }
 
@@ -99,7 +106,7 @@ impl<'a> Drop for Tracer<'a> {
         dedent();
         if TRACER_ENABLED.load(::std::sync::atomic::Ordering::Relaxed) {
             let pad = wrap_color!(colors::next_color(level()), "<{}", self.pad);
-            trace!("{}{}", pad, self.label);
+            eprintln!("{}{}: {}", pad, self.label, self.data);
         }
     }
 }

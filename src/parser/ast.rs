@@ -1,41 +1,77 @@
 use crate::prelude::*;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct Program(pub Variable, pub Block);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Block(pub Vec<Declaration>, pub Compound);
+impl Default for Block {
+    fn default() -> Self {
+        Self {
+            0: vec![
+                Declaration::Variable(vec![]),
+                Declaration::Procedure(vec![]),
+                Declaration::Function(vec![]),
+            ],
+            1: Compound::default(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Declaration {
+    Variable(Vec<VariableDeclaration>),
     Procedure(Vec<ProcedureDeclaration>),
     Function(Vec<FunctionDeclaration>),
-    Variable(Vec<VariableDeclaration>),
-    Empty,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Compound(pub Vec<Statement>);
+impl Default for Compound {
+    fn default() -> Self {
+        Self {
+            0: vec![Statement::Empty],
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Compound(Compound),
     Assignment(Assignment),
     FunctionCall(FunctionCall),
-    IfStatement(IfStatement),
+    IfStatement(Box<IfStatement>),
+    Empty,
+    // repeat
+
+    // while
+    // for
+
+    // repetitive
+
+    // case
+
+    // with
+    // goto
+}
+
+impl Default for Statement {
+    fn default() -> Self {
+        Statement::Empty
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IfStatement {
-    If(Expression, Compound),
-    IfElse(Expression, Compound, Compound),
-    IfElseIf(Expression, Compound, Box<IfStatement>),
+    If(Expression, Statement),
+    IfElse(Expression, Statement, Statement),
+    IfElseIf(Expression, Statement, Box<IfStatement>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct FunctionCall(pub Variable, pub CallParams);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct CallParams(pub Vec<Expression>);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -87,22 +123,22 @@ pub enum BinaryOperator {
     NotEqual,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct ProcedureDeclaration(pub String, pub FormalParameterList, pub Block);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct FunctionDeclaration(pub String, pub FormalParameterList, pub Block, pub Type);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct FormalParameterList(pub Vec<FormalParameter>);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct FormalParameter(pub Vec<String>, pub Type);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct VariableDeclaration(pub Vec<String>, pub Type);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct Variable(pub String);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -112,6 +148,12 @@ pub enum Type {
     Boolean,
     Unit,
     // Real,
+}
+
+impl Default for Type {
+    fn default() -> Self {
+        Type::Unit
+    }
 }
 
 impl From<token::Type> for Type {
