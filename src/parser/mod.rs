@@ -321,6 +321,7 @@ impl Parser {
         traced!("literal");
         Ok(match self.tokens.current() {
             Token::Number(n) => Literal::Integer(n),
+            Token::Real(n) => Literal::Real(n),
             Token::Reserved(Reserved::True) => Literal::Boolean(true),
             Token::Reserved(Reserved::False) => Literal::Boolean(false),
             Token::String(s) => Literal::String(s.clone()),
@@ -341,6 +342,7 @@ impl Parser {
         match token {
             Token::Number(_)
             | Token::String(_)
+            | Token::Real(_)
             | Token::Reserved(Reserved::True)
             | Token::Reserved(Reserved::False) => Some(PrefixParser::Literal),
 
@@ -363,8 +365,11 @@ impl Parser {
 
         match token {
             Token::Symbol(Plus) | Token::Symbol(Minus) => Some(Op(BinaryAdd)),
-            Token::Symbol(Symbol::Mul) => Some(Op(BinaryMul)),
-            Token::Reserved(Reserved::Div) => Some(Op(BinaryMul)),
+
+            Token::Symbol(Symbol::Mul)
+            | Token::Symbol(Symbol::Div)
+            | Token::Reserved(Reserved::Div) => Some(Op(BinaryMul)),
+
             Token::Reserved(And) | Token::Reserved(Or) => Some(Op(BinaryBool)),
 
             Token::Symbol(LessThan)
@@ -508,7 +513,7 @@ impl BinaryOp for Symbol {
             Symbol::Plus => BinaryOperator::Plus,
             Symbol::Minus => BinaryOperator::Minus,
             Symbol::Mul => BinaryOperator::Mul,
-            Symbol::Div => BinaryOperator::Div,
+            Symbol::Div => BinaryOperator::RealDiv,
 
             Symbol::LessThan => BinaryOperator::LessThan,
             Symbol::GreaterThan => BinaryOperator::GreaterThan,
@@ -558,11 +563,13 @@ mod tests {
     }
 
     fn make_parser(input: &str) -> Parser {
+        // TODO put this behind a feature flag
+
         // let _ = env_logger::Builder::from_default_env()
         //     .default_format_timestamp(false)
         //     .try_init();
 
-        enable_colors();
+        // enable_colors();
         // enable_tracer();
 
         let tokens = scan("", input);
@@ -771,6 +778,11 @@ mod tests {
         let input = "false";
         let mut parser = make_parser(input);
         assert_eq!(parser.literal(), Ok(Literal::Boolean(false)));
+
+        for input in &[("1.234", 1.234f64), ("5e-3", 5e-3), ("87.35E+8", 87.35E+8)] {
+            let mut parser = make_parser(input.0);
+            assert_eq!(parser.literal(), Ok(Literal::Real(input.1)));
+        }
     }
 
     #[test]
@@ -814,7 +826,7 @@ mod tests {
 
     #[test]
     fn formal_parameter_list() {
-        let input = "a: integer; b: string; c,d: bool";
+        let input = "a: integer; b: string; c,d: bool; e,f: real";
         let mut parser = make_parser(input);
         assert_eq!(
             parser.formal_parameter_list(),
@@ -822,6 +834,7 @@ mod tests {
                 FormalParameter(vec!["a".into()], Type::Integer),
                 FormalParameter(vec!["b".into()], Type::String),
                 FormalParameter(vec!["c".into(), "d".into()], Type::Boolean),
+                FormalParameter(vec!["e".into(), "f".into()], Type::Real),
             ]))
         );
     }
@@ -916,6 +929,20 @@ mod tests {
             Ok(Expression::Binary(Box::new(BinaryExpression(
                 Expression::Literal(Literal::Integer(5)),
                 BinaryOperator::Div,
+                Expression::Literal(Literal::Integer(5)),
+            ))))
+        )
+    }
+
+    #[test]
+    fn expr_binary_div_real() {
+        let input = "5 / 5";
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Binary(Box::new(BinaryExpression(
+                Expression::Literal(Literal::Integer(5)),
+                BinaryOperator::RealDiv,
                 Expression::Literal(Literal::Integer(5)),
             ))))
         )
@@ -1058,12 +1085,18 @@ mod tests {
 
     #[test]
     fn expr_literal() {
-        let input = "'test'";
-        let mut parser = make_parser(input);
-        assert_eq!(
-            parser.expression(None),
-            Ok(Expression::Literal(Literal::String("test".into())))
-        );
+        for input in &[
+            ("'test'", Literal::String("test".into())),
+            ("5", Literal::Integer(5)),
+            ("5.5", Literal::Real(5.5)),
+            ("true", Literal::Boolean(true)),
+        ] {
+            let mut parser = make_parser(input.0);
+            assert_eq!(
+                parser.expression(None),
+                Ok(Expression::Literal(input.1.clone()))
+            );
+        }
     }
 
     #[test]

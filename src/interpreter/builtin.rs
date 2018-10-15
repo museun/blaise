@@ -11,6 +11,7 @@ pub(crate) fn write(data: Object) -> Result<Object, Error> {
         Object::Primitive(Integer(n)) => print!("{}", n),
         Object::Primitive(String(s)) => print!("{}", s),
         Object::Primitive(Boolean(b)) => print!("{}", b),
+        Object::Primitive(Real(r)) => print!("{}", r),
         _ => return Err(Error::InvalidArgument),
     }
 
@@ -23,6 +24,7 @@ pub(crate) fn writeln(data: Object) -> Result<Object, Error> {
         Object::Primitive(Integer(n)) => println!("{}", n),
         Object::Primitive(String(s)) => println!("{}", s),
         Object::Primitive(Boolean(b)) => println!("{}", b),
+        Object::Primitive(Real(r)) => println!("{}", r),
         _ => return Err(Error::InvalidArgument),
     }
 

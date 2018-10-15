@@ -134,7 +134,8 @@ impl Interpreter {
                 match self.visit_expression(params[0].clone())? {
                     o @ Object::Primitive(Primitive::Integer(_))
                     | o @ Object::Primitive(Primitive::String(_))
-                    | o @ Object::Primitive(Primitive::Boolean(_)) => f(o),
+                    | o @ Object::Primitive(Primitive::Boolean(_))
+                    | o @ Object::Primitive(Primitive::Real(_)) => f(o),
 
                     o => {
                         warn!("invalid argument: {:#?}", o);
@@ -188,6 +189,8 @@ impl Interpreter {
             Ex(left, Op::Mul, expr) => visit(left)?.multiply(&visit(expr)?),
             Ex(left, Op::Div, expr) => visit(left)?.int_divide(&visit(expr)?),
 
+            Ex(left, Op::RealDiv, expr) => visit(left)?.real_divide(&visit(expr)?),
+
             Ex(left, Op::And, expr) => visit(left)?.and(&visit(expr)?),
             Ex(left, Op::Or, expr) => visit(left)?.or(&visit(expr)?),
             Ex(left, Op::LessThan, expr) => visit(left)?.less_than(&visit(expr)?),
@@ -204,6 +207,7 @@ impl Interpreter {
             Literal::Integer(n) => n.into(),
             Literal::String(s) => s.into(),
             Literal::Boolean(b) => b.into(),
+            Literal::Real(r) => r.into(),
         })
     }
 

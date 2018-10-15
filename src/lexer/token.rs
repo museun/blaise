@@ -55,9 +55,13 @@ impl Token {
             Type(ty) => format!("{:?}", ty).len(),
 
             Identifier(id) => id.len(),
+
             Number(n) => count_digits(*n as usize),
+            Real(n) => format!("{}", n).len(), // can't do this quickly
+
             String(s) => s.len(),
             Label(s) => s.len(),
+
             Comment(start, end) => 1 + count_digits(*start) + count_digits(*end), // for the comma
             _ => 0,
         }
@@ -69,7 +73,8 @@ pub enum Type {
     Integer,
     String,
     Boolean,
-    // Real, Unit
+    Real,
+    //Unit
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]

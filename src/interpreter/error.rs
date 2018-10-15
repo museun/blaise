@@ -17,6 +17,7 @@ pub enum OperatorError {
     Sub,
     Mul,
     IntDiv,
+    RealDiv,
     UnaryAdd,
     UnarySub,
     UnaryNot,

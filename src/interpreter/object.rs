@@ -24,11 +24,18 @@ pub enum Primitive {
     Integer(i64),
     String(RString),
     Boolean(bool),
+    Real(f64),
 }
 
 impl From<i64> for Object {
     fn from(s: i64) -> Self {
         Object::Primitive(Primitive::Integer(s))
+    }
+}
+
+impl From<f64> for Object {
+    fn from(r: f64) -> Self {
+        Object::Primitive(Primitive::Real(r))
     }
 }
 
@@ -95,6 +102,25 @@ impl Object {
             (left, right) => Self::error(left, Some(right), OperatorError::IntDiv),
         }
     }
+
+    // real
+    pub fn real_divide(&self, other: &Self) -> Result<Self, Error> {
+        match (self, other) {
+            (Prim(Real(left)), Prim(Real(right))) => Ok(((*left as f64) / (*right as f64)).into()),
+            (Prim(Integer(left)), Prim(Integer(right))) => {
+                Ok(((*left as f64) / (*right as f64)).into())
+            }
+            (Prim(Real(left)), Prim(Integer(right))) => {
+                Ok(((*left as f64) / (*right as f64)).into())
+            }
+            (Prim(Integer(left)), Prim(Real(right))) => {
+                Ok(((*left as f64) / (*right as f64)).into())
+            }
+
+            (left, right) => Self::error(left, Some(right), OperatorError::RealDiv),
+        }
+    }
+    // real
 
     pub fn and(&self, other: &Self) -> Result<Self, Error> {
         match (self, other) {

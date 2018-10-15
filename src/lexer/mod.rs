@@ -269,10 +269,11 @@ fn comment_lexer(stream: &mut Stream<'_>) -> State {
 }
 
 fn type_lexer(stream: &mut Stream<'_>) -> State {
-    const TYPES: &[(&str, Type); 3] = &[
+    const TYPES: &[(&str, Type); 4] = &[
         ("integer", Type::Integer),
         ("string", Type::String),
         ("bool", Type::Boolean),
+        ("real", Type::Real),
     ];
     let c = stream.current();
     if !c.is_ascii_alphabetic() {

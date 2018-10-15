@@ -97,6 +97,7 @@ pub enum Literal {
     Integer(i64),
     String(String),
     Boolean(bool),
+    Real(f64),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -112,6 +113,8 @@ pub enum BinaryOperator {
     Minus,
     Mul,
     Div,
+
+    RealDiv,
 
     And,
     Or,
@@ -146,8 +149,8 @@ pub enum Type {
     Integer,
     String,
     Boolean,
+    Real,
     Unit,
-    // Real,
 }
 
 impl Default for Type {
@@ -162,6 +165,7 @@ impl From<token::Type> for Type {
             token::Type::Integer => Type::Integer,
             token::Type::String => Type::String,
             token::Type::Boolean => Type::Boolean,
+            token::Type::Real => Type::Real,
         }
     }
 }
