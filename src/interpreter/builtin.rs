@@ -1,4 +1,4 @@
-use super::object::Primitive::*;
+use super::primitive::Primitive::*;
 use super::*;
 
 use std::io::prelude::*;

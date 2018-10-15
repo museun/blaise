@@ -8,7 +8,8 @@ pub enum Error {
     UnknownScope,
     UnknownFunction(String), // Procedure?
     InvalidArgument,
-    InvalidOperation(OperatorError, Object, Option<Object>),
+    InvalidType(OperatorError, Object, Option<Object>),
+    InvalidOperation(OperatorError, Primitive, Option<Primitive>),
 }
 
 #[derive(Debug)]

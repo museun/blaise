@@ -3,10 +3,12 @@ use crate::prelude::ast::*;
 mod builtin;
 mod error;
 mod object;
+mod primitive;
 mod scope;
 
 use self::error::{Error, OperatorError};
-use self::object::{Builtin, Object, Primitive};
+use self::object::{Builtin, Object};
+use self::primitive::Primitive;
 use self::scope::Scope;
 
 type Result<T> = ::std::result::Result<T, Error>;
