@@ -92,8 +92,8 @@ impl Interpreter {
     }
 
     fn visit_formal_parameter(&mut self, node: FormalParameter) -> Result<Vec<String>> {
-        // TODO this
-        Ok(node.0.to_vec())
+        let FormalParameter(names, _) = node;
+        Ok(names)
     }
 
     fn visit_compound(&mut self, node: Compound) -> Result<Object> {
@@ -155,8 +155,41 @@ impl Interpreter {
         self.visit_expression(expr)
     }
 
-    fn visit_if_statement(&mut self, _node: IfStatement) -> Result<Object> {
-        unimplemented!()
+    fn visit_if_statement(&mut self, node: IfStatement) -> Result<Object> {
+        match node {
+            IfStatement::If(expr, stmt) => match self.visit_expression(expr)? {
+                Object::Primitive(Primitive::Boolean(true)) => {
+                    self.visit_statement(stmt)?;
+                    Ok(Object::Unit)
+                }
+                Object::Primitive(Primitive::Boolean(false)) => Ok(Object::Unit),
+                _ => panic!(),
+            },
+
+            IfStatement::IfElse(expr, if_, else_) => match self.visit_expression(expr)? {
+                Object::Primitive(Primitive::Boolean(true)) => {
+                    self.visit_statement(if_)?;
+                    Ok(Object::Unit)
+                }
+                Object::Primitive(Primitive::Boolean(false)) => {
+                    self.visit_statement(else_)?;
+                    Ok(Object::Unit)
+                }
+                _ => panic!(),
+            },
+
+            IfStatement::IfElseIf(expr, if_, else_) => match self.visit_expression(expr)? {
+                Object::Primitive(Primitive::Boolean(true)) => {
+                    self.visit_statement(if_)?;
+                    Ok(Object::Unit)
+                }
+                Object::Primitive(Primitive::Boolean(false)) => {
+                    self.visit_if_statement(*else_)?;
+                    Ok(Object::Unit)
+                }
+                _ => panic!(),
+            },
+        }
     }
 
     fn visit_assignment(&mut self, node: Assignment) -> Result<Object> {
