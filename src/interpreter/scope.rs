@@ -31,7 +31,11 @@ impl Scope {
     }
 
     pub fn parent(self) -> Option<Scope> {
-        self.parent.map(|s| *s)
+        // clone the parent
+        if let Some(s) = self.parent {
+            return Some(*s);
+        }
+        None
     }
 
     pub fn get(&mut self, name: impl AsRef<str>) -> Option<&Object> {

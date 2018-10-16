@@ -24,20 +24,23 @@ impl Interpreter {
     }
 
     pub fn evaluate(&mut self, program: Program) {
-        if let Err(err) = self.visit(program) {
-            error!("{}", err);
-            error!("{:#?}", self.scope);
-            ::std::process::exit(1)
+        match self.visit(program) {
+            Err(err) => {
+                error!("{:#?}", self.scope);
+                error!("{}", err);
+                ::std::process::exit(1)
+            }
+            Ok(object) => info!("result=> {:#?}", object),
         }
     }
 
-    fn visit(&mut self, node: Program) -> Result<()> {
+    fn visit(&mut self, node: Program) -> Result<Object> {
         let Program(Variable(name), block) = node;
         self.enter(name);
         self.init()?;
-        info!("result: {:#?}", self.visit_block(block)?);
+        let result = self.visit_block(block)?;
         self.leave();
-        Ok(())
+        Ok(result)
     }
 
     fn visit_block(&mut self, node: Block) -> Result<Object> {
