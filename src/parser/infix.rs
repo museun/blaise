@@ -3,6 +3,7 @@ use super::*;
 #[derive(Debug)]
 pub enum InfixParser {
     BinaryOperator(Precedence),
+    RelationalOperator(Precedence),
     FunctionCall(Precedence),
 }
 
@@ -14,6 +15,12 @@ impl InfixParser {
                 Expression::Binary(Box::new(op))
             }
 
+            // the types won't be known here
+            InfixParser::RelationalOperator(_) => {
+                let op = self.binary_op(parser, left)?;
+                Expression::Boolean(Box::new(op))
+            }
+
             InfixParser::FunctionCall(_) => {
                 Expression::FunctionCall(parser.function_call_expr(left)?)
             }
@@ -22,7 +29,9 @@ impl InfixParser {
 
     pub fn precedence(&self) -> u32 {
         match *self {
-            InfixParser::BinaryOperator(p) | InfixParser::FunctionCall(p) => p as u32,
+            InfixParser::BinaryOperator(p)
+            | InfixParser::RelationalOperator(p)
+            | InfixParser::FunctionCall(p) => p as u32,
         }
     }
 

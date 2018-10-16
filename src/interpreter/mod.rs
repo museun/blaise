@@ -115,6 +115,7 @@ impl Interpreter {
             Statement::FunctionCall(call) => self.visit_function_call(call),
             Statement::IfStatement(stmt) => self.visit_if_statement(*stmt),
             Statement::Empty => Ok(Object::Unit),
+            e => unimplemented!("{:#?}", e),
         }
     }
 
@@ -166,7 +167,7 @@ impl Interpreter {
                     Ok(Object::Unit)
                 }
                 Object::Primitive(Primitive::Boolean(false)) => Ok(Object::Unit),
-                _ => panic!(),
+                e => unimplemented!("{:#?}", e),
             },
 
             IfStatement::IfElse(expr, if_, else_) => match self.visit_expression(expr)? {
@@ -178,7 +179,7 @@ impl Interpreter {
                     self.visit_statement(else_)?;
                     Ok(Object::Unit)
                 }
-                _ => panic!(),
+                e => unimplemented!("{:#?}", e),
             },
 
             IfStatement::IfElseIf(expr, if_, else_) => match self.visit_expression(expr)? {
@@ -190,7 +191,7 @@ impl Interpreter {
                     self.visit_if_statement(*else_)?;
                     Ok(Object::Unit)
                 }
-                _ => panic!(),
+                e => unimplemented!("{:#?}", e),
             },
         }
     }
@@ -210,6 +211,7 @@ impl Interpreter {
             Expression::Variable(expr) => self.visit_variable(expr),
             Expression::FunctionCall(call) => self.visit_function_call(call),
             Expression::Group(expr) => self.visit_group(*expr),
+            e => unimplemented!("{:#?}", e),
         }
     }
 

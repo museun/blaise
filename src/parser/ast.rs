@@ -35,30 +35,37 @@ impl Default for Compound {
     }
 }
 
+// case
+// with
+// goto
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Compound(Compound),
     Assignment(Assignment),
     FunctionCall(FunctionCall),
     IfStatement(Box<IfStatement>),
+    Repetitive(Repetitive),
     Empty,
-    // repeat
-
-    // while
-    // for
-
-    // repetitive
-
-    // case
-
-    // with
-    // goto
 }
 
 impl Default for Statement {
     fn default() -> Self {
         Statement::Empty
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Repetitive {
+    Repeat(Vec<Statement>, Expression),
+    While(Expression, Compound),
+    For(Variable, Expression, Direction, Expression, Compound),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Direction {
+    To,
+    DownTo,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -81,6 +88,7 @@ pub struct Assignment(pub Variable, pub Expression);
 pub enum Expression {
     Unary(Box<UnaryExpression>),
     Binary(Box<BinaryExpression>),
+    Boolean(Box<BinaryExpression>),
     Literal(Literal),
     Variable(Variable),
     FunctionCall(FunctionCall),
@@ -118,8 +126,12 @@ pub enum BinaryOperator {
     Mul,
     Div,
     RealDiv,
+
+    // bool
     And,
     Or,
+
+    // relational
     LessThan,
     GreaterThan,
     LessThanEqual,

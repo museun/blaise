@@ -164,6 +164,10 @@ impl Parser {
             },
             Token::Reserved(Reserved::If) => IfStatement(Box::new(self.if_statement()?)),
             Token::Reserved(Reserved::End) => Empty,
+
+            Token::Reserved(Reserved::Repeat)
+            | Token::Reserved(Reserved::While)
+            | Token::Reserved(Reserved::For) => Repetitive(self.repetitive()?),
             t => self.unexpected(t)?,
         };
         Ok(res)
@@ -174,6 +178,26 @@ impl Parser {
         let id = self.expect(Self::variable, "(")?;
         let params = self.expect(Self::call_params, ")")?;
         Ok(FunctionCall(id, params))
+    }
+
+    // TODO fn statement_sequence(&mut self, end: impl Into<Token>) -> Vec<Statement> {}
+    fn repetitive(&mut self) -> Result<Repetitive> {
+        match self.tokens.current() {
+            Token::Reserved(Reserved::Repeat) => {
+                self.tokens.advance();
+                // repeat stmt-seq until bool-expr
+                let mut statements = vec![self.statement()?];
+                while !self.consume("until") {
+                    self.expect_token(";")?;
+                    statements.push(self.statement()?);
+                }
+                let expr = self.expression(None)?;
+                Ok(Repetitive::Repeat(statements, expr))
+            }
+            Token::Reserved(Reserved::While) => unimplemented!(),
+            Token::Reserved(Reserved::For) => unimplemented!(),
+            _ => unreachable!(),
+        }
     }
 
     fn if_statement(&mut self) -> Result<IfStatement> {
@@ -363,25 +387,26 @@ impl Parser {
 
     fn infix_parser(&mut self, token: &Token) -> Option<InfixParser> {
         traced!("infix_parser");
-        use self::InfixParser::BinaryOperator as Op;
+        use self::InfixParser::{BinaryOperator as BinOp, RelationalOperator as RelOp};
         use self::Precedence::*;
         use crate::prelude::token::{Reserved::*, Symbol::*};
 
         match token {
-            Token::Symbol(Plus) | Token::Symbol(Minus) => Some(Op(BinaryAdd)),
+            Token::Symbol(Plus) | Token::Symbol(Minus) => Some(BinOp(BinaryAdd)),
 
             Token::Symbol(Symbol::Mul)
             | Token::Symbol(Symbol::Div)
-            | Token::Reserved(Reserved::Div) => Some(Op(BinaryMul)),
+            | Token::Reserved(Reserved::Div) => Some(BinOp(BinaryMul)),
 
-            Token::Reserved(And) | Token::Reserved(Or) => Some(Op(BinaryBool)),
+            // is this relational?
+            Token::Reserved(And) | Token::Reserved(Or) => Some(RelOp(BinaryBool)),
 
             Token::Symbol(LessThan)
             | Token::Symbol(GreaterThan)
             | Token::Symbol(LessThanEqual)
             | Token::Symbol(GreaterThanEqual)
             | Token::Symbol(Equal)
-            | Token::Symbol(NotEqual) => Some(Op(Relative)),
+            | Token::Symbol(NotEqual) => Some(RelOp(Relative)),
 
             Token::Symbol(OpenParen) => Some(InfixParser::FunctionCall(Call)),
             _ => None,
@@ -630,6 +655,45 @@ mod tests {
                 Variable("foo".into()),
                 Expression::Literal(Literal::Integer(5))
             ))
+        );
+    }
+
+    #[test]
+    fn repeat_statement() {
+        let input = r#"
+        repeat
+            x := x + 1;
+            x := x + 1
+        until x = 10;
+        "#;
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.statement(),
+            Ok(Statement::Repetitive(Repetitive::Repeat(
+                vec![
+                    Statement::Assignment(Assignment(
+                        Variable("x".into()),
+                        Expression::Binary(Box::new(BinaryExpression(
+                            Expression::Variable(Variable("x".into())),
+                            BinaryOperator::Plus,
+                            Expression::Literal(Literal::Integer(1)),
+                        )))
+                    )),
+                    Statement::Assignment(Assignment(
+                        Variable("x".into()),
+                        Expression::Binary(Box::new(BinaryExpression(
+                            Expression::Variable(Variable("x".into())),
+                            BinaryOperator::Plus,
+                            Expression::Literal(Literal::Integer(1)),
+                        )))
+                    ))
+                ],
+                Expression::Boolean(Box::new(BinaryExpression(
+                    Expression::Variable(Variable("x".into())),
+                    BinaryOperator::Equal,
+                    Expression::Literal(Literal::Integer(10)),
+                )))
+            )))
         );
     }
 
@@ -912,7 +976,7 @@ mod tests {
         let mut parser = make_parser(input);
         assert_eq!(
             parser.expression(None),
-            Ok(Expression::Binary(Box::new(BinaryExpression(
+            Ok(Expression::Boolean(Box::new(BinaryExpression(
                 Expression::Literal(Literal::Integer(5)),
                 BinaryOperator::And,
                 Expression::Literal(Literal::Integer(5)),
@@ -926,7 +990,7 @@ mod tests {
         let mut parser = make_parser(input);
         assert_eq!(
             parser.expression(None),
-            Ok(Expression::Binary(Box::new(BinaryExpression(
+            Ok(Expression::Boolean(Box::new(BinaryExpression(
                 Expression::Literal(Literal::Integer(5)),
                 BinaryOperator::Or,
                 Expression::Literal(Literal::Integer(5)),
@@ -940,7 +1004,7 @@ mod tests {
         let mut parser = make_parser(input);
         assert_eq!(
             parser.expression(None),
-            Ok(Expression::Binary(Box::new(BinaryExpression(
+            Ok(Expression::Boolean(Box::new(BinaryExpression(
                 Expression::Literal(Literal::Integer(5)),
                 BinaryOperator::LessThan,
                 Expression::Literal(Literal::Integer(5)),
@@ -954,7 +1018,7 @@ mod tests {
         let mut parser = make_parser(input);
         assert_eq!(
             parser.expression(None),
-            Ok(Expression::Binary(Box::new(BinaryExpression(
+            Ok(Expression::Boolean(Box::new(BinaryExpression(
                 Expression::Literal(Literal::Integer(5)),
                 BinaryOperator::GreaterThan,
                 Expression::Literal(Literal::Integer(5)),
@@ -968,7 +1032,7 @@ mod tests {
         let mut parser = make_parser(input);
         assert_eq!(
             parser.expression(None),
-            Ok(Expression::Binary(Box::new(BinaryExpression(
+            Ok(Expression::Boolean(Box::new(BinaryExpression(
                 Expression::Literal(Literal::Integer(5)),
                 BinaryOperator::LessThanEqual,
                 Expression::Literal(Literal::Integer(5)),
@@ -982,7 +1046,7 @@ mod tests {
         let mut parser = make_parser(input);
         assert_eq!(
             parser.expression(None),
-            Ok(Expression::Binary(Box::new(BinaryExpression(
+            Ok(Expression::Boolean(Box::new(BinaryExpression(
                 Expression::Literal(Literal::Integer(5)),
                 BinaryOperator::GreaterThanEqual,
                 Expression::Literal(Literal::Integer(5)),
@@ -996,7 +1060,7 @@ mod tests {
         let mut parser = make_parser(input);
         assert_eq!(
             parser.expression(None),
-            Ok(Expression::Binary(Box::new(BinaryExpression(
+            Ok(Expression::Boolean(Box::new(BinaryExpression(
                 Expression::Literal(Literal::Integer(5)),
                 BinaryOperator::Equal,
                 Expression::Literal(Literal::Integer(5)),
@@ -1010,7 +1074,7 @@ mod tests {
         let mut parser = make_parser(input);
         assert_eq!(
             parser.expression(None),
-            Ok(Expression::Binary(Box::new(BinaryExpression(
+            Ok(Expression::Boolean(Box::new(BinaryExpression(
                 Expression::Literal(Literal::Integer(5)),
                 BinaryOperator::NotEqual,
                 Expression::Literal(Literal::Integer(5)),
