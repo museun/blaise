@@ -42,7 +42,6 @@ impl Parser {
     pub fn block(&mut self) -> Result<Block> {
         traced!("block");
         let decls = self.declarations()?;
-        trace!("decls: {:#?}", decls);
         let compound = self.compound_statement()?;
         Ok(Block(decls, compound))
     }
@@ -140,8 +139,12 @@ impl Parser {
         traced!("compound_statement");
         // begin stmt1; stmt2 end
         self.expect_token("begin")?;
+        trace!("cur: {:?}", self.tokens.current());
+
+        // self.tokens.advance(); // ??
         let mut statements = vec![self.statement()?];
         while !self.consume("end") {
+            trace!("current: {:?}", self.tokens.current());
             self.expect_token(";")?;
             statements.push(self.statement()?);
         }
@@ -152,7 +155,10 @@ impl Parser {
         traced!("statement");
         use self::Statement::*;
 
-        let res = match self.tokens.peek() {
+        let tok = self.tokens.current();
+        trace!("stmt tok: {:?}", tok);
+
+        let res = match tok {
             Token::Reserved(Reserved::Begin) => Compound(self.compound_statement()?),
             Token::Identifier(_) => match self.tokens.peek_ahead(1).unwrap() {
                 Token::Symbol(Symbol::OpenParen) => FunctionCall(self.function_call()?),
@@ -168,7 +174,14 @@ impl Parser {
             Token::Reserved(Reserved::Repeat)
             | Token::Reserved(Reserved::While)
             | Token::Reserved(Reserved::For) => Repetitive(self.repetitive()?),
-            t => self.unexpected(t)?,
+
+            // eat the random semi colons?
+            Token::Symbol(Symbol::SemiColon) => self.statement()?,
+
+            e => {
+                trace!("unexpected tok in statement: {:?}", e);
+                self.unexpected(e)?
+            }
         };
         Ok(res)
     }
@@ -199,17 +212,13 @@ impl Parser {
                 self.tokens.advance();
                 // TODO check to see if this is boolean
                 let expr = self.expression(None)?;
+                trace!("expr: {:#?}", expr);
                 self.expect_token("do")?;
                 let comp = self.compound_statement()?;
                 Ok(Repetitive::While(expr, comp))
             }
             Token::Reserved(Reserved::For) => {
                 self.tokens.advance();
-                //  For(Variable, Expression, Direction, Expression, Compound),
-                //  for-statement = 'for' control-variable ':=' initial-value
-                //   ( 'to' | 'downto' )
-                //   final-value 'do' statement .
-
                 let var = self.variable()?;
                 self.expect_token(":=")?;
                 let start = self.expression(None)?;
@@ -224,7 +233,7 @@ impl Parser {
 
                 Ok(Repetitive::For(var, start, dir, end, comp))
             }
-            _ => unreachable!(),
+            e => unreachable!("repetitive token: {:?}", e),
         }
     }
 
@@ -468,9 +477,13 @@ impl Parser {
         match self.tokens.peek() {
             ref t if *t == tok => {
                 self.tokens.advance();
+                trace!("consumed: {:?}", tok);
                 true
             }
-            _ => false,
+            _ => {
+                trace!("not consumed: {:?}", tok);
+                false
+            }
         }
     }
 
@@ -491,12 +504,12 @@ impl Parser {
         let tok = tok.into();
         traced!("expect", "{:?}", tok);
         let res = f(self).map_err(|e| {
-            trace!("expected: {:?}", tok);
+            trace!("expected: {:?} : {:?}", tok, e);
             e
         })?;
 
         self.expect_token(tok.clone()).map_err(|e| {
-            trace!("expected: {:?}", tok);
+            trace!("expected: {:?} : {:?}", tok, e);
             e
         })?;
 
@@ -506,8 +519,9 @@ impl Parser {
     // maybe this should peek
     pub(crate) fn expect_token(&mut self, tok: impl Into<Token>) -> Result<Token> {
         let tok = tok.into();
-        traced!("expect_token", "{:?}", tok);
-        match self.tokens.peek() {
+        let peek = self.tokens.peek();
+        traced!("expect_token", "{:?} -> {:?}", tok, peek);
+        match peek {
             ref t if *t == tok => {
                 self.tokens.advance();
                 Ok(tok)
@@ -576,12 +590,12 @@ mod tests {
     fn make_parser(input: &str) -> Parser {
         // TODO put this behind a feature flag
 
-        // let _ = env_logger::Builder::from_default_env()
-        //     .default_format_timestamp(false)
-        //     .try_init();
+        let _ = env_logger::Builder::from_default_env()
+            .default_format_timestamp(false)
+            .try_init();
 
-        // enable_colors();
-        // enable_tracer();
+        enable_colors();
+        enable_tracer();
 
         let tokens = scan("", input);
         eprintln!("{}", tokens);
@@ -601,6 +615,20 @@ mod tests {
     fn block() {
         let mut parser = make_parser("begin end");
         assert_eq!(parser.block(), Ok(Block::default()));
+    }
+
+    #[test]
+    fn compound_nested() {
+        let mut parser = make_parser(
+            r#"
+        begin 
+            begin 
+                begin
+                end
+            end
+        end"#,
+        );
+        assert_eq!(parser.compound_statement(), Ok(Compound::default()));
     }
 
     #[test]
@@ -731,7 +759,7 @@ mod tests {
         while x < 10 do
         begin
             x := x + 1
-        end;            
+        end;
         "#;
         let mut parser = make_parser(input);
         assert_eq!(
