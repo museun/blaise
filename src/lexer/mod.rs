@@ -173,6 +173,8 @@ fn number_lexer(stream: &mut Stream<'_>) -> State {
 
     let mut is_f = false;
     let mut s = String::new();
+
+    #[allow(clippy::while_let_loop)]
     loop {
         let c = match stream.peek() {
             Some(c) => c,
