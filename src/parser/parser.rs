@@ -191,10 +191,18 @@ impl Parser {
                     self.expect_token(";")?;
                     statements.push(self.statement()?);
                 }
+                // TODO check to see if this is boolean
                 let expr = self.expression(None)?;
                 Ok(Repetitive::Repeat(statements, expr))
             }
-            Token::Reserved(Reserved::While) => unimplemented!(),
+            Token::Reserved(Reserved::While) => {
+                self.tokens.advance();
+                // TODO check to see if this is boolean
+                let expr = self.expression(None)?;
+                self.expect_token("do")?;
+                let comp = self.compound_statement()?;
+                Ok(Repetitive::While(expr, comp))
+            }
             Token::Reserved(Reserved::For) => unimplemented!(),
             _ => unreachable!(),
         }
@@ -695,6 +703,35 @@ mod tests {
                 )))
             )))
         );
+    }
+
+    #[test]
+    fn while_statement() {
+        let input = r#"
+        while x < 10 do
+        begin
+            x := x + 1
+        end;            
+        "#;
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.statement(),
+            Ok(Statement::Repetitive(Repetitive::While(
+                Expression::Boolean(Box::new(BinaryExpression(
+                    Expression::Variable(Variable("x".into())),
+                    BinaryOperator::LessThan,
+                    Expression::Literal(Literal::Integer(10)),
+                ))),
+                Compound(vec![Statement::Assignment(Assignment(
+                    Variable("x".into()),
+                    Expression::Binary(Box::new(BinaryExpression(
+                        Expression::Variable(Variable("x".into())),
+                        BinaryOperator::Plus,
+                        Expression::Literal(Literal::Integer(1)),
+                    ))),
+                ))]),
+            )))
+        )
     }
 
     #[test]
