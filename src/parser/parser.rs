@@ -203,7 +203,27 @@ impl Parser {
                 let comp = self.compound_statement()?;
                 Ok(Repetitive::While(expr, comp))
             }
-            Token::Reserved(Reserved::For) => unimplemented!(),
+            Token::Reserved(Reserved::For) => {
+                self.tokens.advance();
+                //  For(Variable, Expression, Direction, Expression, Compound),
+                //  for-statement = 'for' control-variable ':=' initial-value
+                //   ( 'to' | 'downto' )
+                //   final-value 'do' statement .
+
+                let var = self.variable()?;
+                self.expect_token(":=")?;
+                let start = self.expression(None)?;
+                let dir = match self.tokens.next_token() {
+                    Token::Reserved(Reserved::To) => Direction::To,
+                    Token::Reserved(Reserved::Downto) => Direction::DownTo,
+                    e => self.unexpected(e)?,
+                };
+                let end = self.expression(None)?;
+                self.expect_token("do")?;
+                let comp = self.compound_statement()?;
+
+                Ok(Repetitive::For(var, start, dir, end, comp))
+            }
             _ => unreachable!(),
         }
     }
@@ -732,6 +752,61 @@ mod tests {
                 ))]),
             )))
         )
+    }
+
+    #[test]
+    fn for_statement() {
+        let input = r#"
+        for x := 0 to 10 do
+        begin
+            y := x + 1
+        end;
+        "#;
+
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.statement(),
+            Ok(Statement::Repetitive(Repetitive::For(
+                Variable("x".into()),
+                Expression::Literal(Literal::Integer(0)),
+                Direction::To,
+                Expression::Literal(Literal::Integer(10)),
+                Compound(vec![Statement::Assignment(Assignment(
+                    Variable("y".into()),
+                    Expression::Binary(Box::new(BinaryExpression(
+                        Expression::Variable(Variable("x".into())),
+                        BinaryOperator::Plus,
+                        Expression::Literal(Literal::Integer(1)),
+                    ))),
+                ))]),
+            )))
+        );
+
+        let input = r#"
+        for x := 10 downto 0 do
+        begin
+            y := x + 1
+        end;
+        "#;
+
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.statement(),
+            Ok(Statement::Repetitive(Repetitive::For(
+                Variable("x".into()),
+                Expression::Literal(Literal::Integer(10)),
+                Direction::DownTo,
+                Expression::Literal(Literal::Integer(0)),
+                Compound(vec![Statement::Assignment(Assignment(
+                    Variable("y".into()),
+                    Expression::Binary(Box::new(BinaryExpression(
+                        Expression::Variable(Variable("x".into())),
+                        BinaryOperator::Plus,
+                        Expression::Literal(Literal::Integer(1)),
+                    ))),
+                ))]),
+            )))
+        );
     }
 
     #[test]
