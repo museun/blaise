@@ -59,7 +59,7 @@ impl Token {
             Number(n) => count_digits(*n as usize),
             Real(n) => format!("{}", n).len(), // can't do this quickly
 
-            String(s) => s.len(),
+            String(s) => s.len() + 2, // for ''
             Label(s) => s.len(),
 
             Comment(start, end) => 1 + count_digits(*start) + count_digits(*end), // for the comma

@@ -111,7 +111,7 @@ impl Tokens {
 
                 Number(n) => format!("{} {: <width$}: Number", n, "", width = width),
                 Real(n) => format!("{} {: <width$}: Real", n, "", width = width),
-                String(s) => format!("{} {: <width$}: String", s, "", width = width),
+                String(s) => format!("'{}' {: <width$}: String", s, "", width = width),
 
                 Comment(start, end) => {
                     format!("{},{} {: <width$}: Comment", start, end, "", width = width)
