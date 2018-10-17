@@ -1,7 +1,7 @@
 use super::*;
 
 pub struct Parser {
-    pub(crate) tokens: Tokens,
+    tokens: Tokens,
     source: String,
     filename: String,
 }
