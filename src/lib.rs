@@ -10,6 +10,8 @@ pub(crate) mod trace;
 #[macro_use]
 pub(crate) mod colors;
 
+pub mod config;
+
 mod interpreter;
 mod lexer;
 mod parser;

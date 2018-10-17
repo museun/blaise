@@ -17,10 +17,10 @@ impl Parser {
 
     pub fn parse(mut self) -> Result<Program> {
         let program = self.program()?;
-        match self.next()? {
-            TokenType::EOF => Ok(program),
+        match self.next() {
+            Some(TokenType::EOF) | None => Ok(program),
             // unexpected token
-            t => Err(Error::new(
+            Some(t) => Err(Error::new(
                 ErrorKind::Unexpected(t),
                 self.tokens.span(),
                 self.source,
@@ -468,8 +468,8 @@ impl Parser {
         self.tokens.advance()
     }
 
-    fn next(&mut self) -> Result<TokenType> {
-        self.tokens.next_token().take().ok_or_else(|| panic!())
+    fn next(&mut self) -> Option<TokenType> {
+        self.tokens.next_token().take()
     }
 
     fn expect<T: Into<TokenType>>(&mut self, tok: T) -> Result<TokenType> {
@@ -543,7 +543,8 @@ mod tests {
             assert_eq!($left, $right)
         };
         ($left:expr, $right:expr) => {{
-            if !DEBUG.load(Ordering::Relaxed) {
+            #[cfg(feature = "dump")]
+            {
                 ::std::assert_eq!($left, $right);
                 return;
             }
@@ -918,32 +919,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
-    fn nested_grouping() {
-        let input = "((1 + 2) - 3)";
-
-        // let expr =
-        // Expression::Group(Box::new(GroupExpression(Expression::Binary(Box::new(
-        //     BinaryExpression(
-        //         Expression::Group(Box::new(GroupExpression(Expression::Binary(Box::
-        // new(             BinaryExpression(
-        //                 Expression::Literal(Literal::Integer(1)),
-        //                 BinaryOperator::Plus,
-        //                 Expression::Literal(Literal::Integer(2)),
-        //             ),
-        //         ))))),
-        //         BinaryOperator::Minus,
-        //         Expression::Literal(Literal::Integer(3)),
-        //     ),
-        // )))));
-        let mut parser = make_parser(input);
-        assert_eq!(
-            parser.expression(None),
-            Ok(Expression::Literal(Literal::Integer(0)))
-        );
-    }
-
-    #[test]
     fn assignment_statement() {
         let input = "foo := 5";
         let mut parser = make_parser(input);
@@ -1284,7 +1259,13 @@ mod tests {
 
         let input = "begin begin end; begin end end";
         let mut parser = make_parser(input);
-        assert_eq!(parser.compound_statement(), Ok(Compound::default()));
+        assert_eq!(
+            parser.compound_statement(),
+            Ok(Compound(vec![
+                Statement::Compound(Compound::default()),
+                Statement::Compound(Compound::default())
+            ]))
+        );
     }
 
     #[test]
@@ -1336,23 +1317,20 @@ mod tests {
         assert_eq!(parser.identifier(), Ok("foobar".into()));
     }
 
-    use std::sync::atomic::{AtomicBool, Ordering};
-    static DEBUG: AtomicBool = AtomicBool::new(false);
-
     fn make_parser(input: &str) -> Parser {
         #[cfg(feature = "dump")]
-        DEBUG.store(true, Ordering::Relaxed);
+        let _ = env_logger::Builder::from_default_env()
+            .default_format_timestamp(false)
+            .try_init();
 
-        if DEBUG.load(Ordering::Relaxed) {
-            let _ = env_logger::Builder::from_default_env()
-                .default_format_timestamp(false)
-                .try_init();
+        #[cfg(feature = "dump")]
+        enable_colors();
 
-            enable_colors();
-            enable_tracer();
+        #[cfg(feature = "dump")]
+        enable_tracer();
 
-            eprintln!("{}", &input)
-        }
+        #[cfg(feature = "dump")]
+        eprintln!("{}", &input);
 
         let tokens = scan(&input);
         Parser::new(tokens, input.to_string(), "".to_string())

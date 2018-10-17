@@ -5,6 +5,7 @@ use std::env;
 use std::fs;
 
 use blaise::prelude::*;
+use blaise::config::*;
 
 fn die(data: &str) -> ! {
     eprintln!("{}", data);
@@ -22,36 +23,33 @@ fn main() {
         None => die(&format!("usage: {} <file>", name)),
     };
 
-    let blaise_source = env::var("BLAISE_SOURCE").is_ok();
-    let blaise_tokens = env::var("BLAISE_TOKENS").is_ok();
-    let blaise_ast = env::var("BLAISE_AST").is_ok();
+    let config = OutputConfig::parse();
 
-    if env::var("BLAISE_TRACE").is_ok() {
-        enable_tracer()
-    }
+    simplelog::SimpleLogger::init(
+        match config.log_level {
+            LogLevel::Off => simplelog::LevelFilter::Off,
+            LogLevel::Trace => simplelog::LevelFilter::Trace,
+            LogLevel::Debug => simplelog::LevelFilter::Debug,
+            LogLevel::Info => simplelog::LevelFilter::Info,
+            LogLevel::Warn => simplelog::LevelFilter::Warn,
+            LogLevel::Error => simplelog::LevelFilter::Error,
+        },
+        simplelog::Config::default(),
+    )
+    .expect("to enable logging");
 
-    let colors = env::var("NO_COLOR").is_err();
-    if colors {
+    if config.use_colors {
         enable_colors()
     }
 
-    env_logger::Builder::from_default_env()
-        .default_format_timestamp(false)
-        .write_style(if colors {
-            env_logger::fmt::WriteStyle::Auto
-        } else {
-            env_logger::fmt::WriteStyle::Never
-        })
-        .init();
-
     let input = fs::read_to_string(&file).expect("read");
-    if blaise_source {
+    if config.show_source {
         eprintln!("{}\n", input);
     }
 
     let mut tokens = scan(&input);
     tokens.remove_comments();
-    if blaise_tokens {
+    if config.show_tokens {
         eprintln!("{}", tokens);
     }
 
@@ -63,7 +61,7 @@ fn main() {
             ::std::process::exit(1);
         }
     };
-    if blaise_ast {
+    if config.show_ast {
         eprintln!("{:#?}", program);
     }
 
