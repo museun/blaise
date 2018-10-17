@@ -367,12 +367,8 @@ impl Parser {
     }
 
     fn unary_op(&mut self, p: Precedence) -> Result<UnaryExpression> {
-        let op = match self.current()? {
-            TokenType::Plus => UnaryOperator::Plus,
-            TokenType::Minus => UnaryOperator::Minus,
-            TokenType::Not => UnaryOperator::Not,
-            t => panic!("{:?}", t),
-        };
+        let tok = self.current()?;
+        let op = tok.as_unary_op().unwrap();
         self.advance();
         Ok(UnaryExpression(op, self.expression(Some(p))?))
     }
@@ -485,7 +481,48 @@ impl Parser {
     }
 
     fn expected_token<T: Into<TokenType>>(&mut self, tok: T) -> Result<()> {
+        let tok = tok.into();
         unimplemented!();
+    }
+}
+
+trait AsOp {
+    fn as_unary_op(&self) -> Option<UnaryOperator>;
+    fn as_binary_op(&self) -> Option<BinaryOperator>;
+}
+
+impl AsOp for TokenType {
+    fn as_unary_op(&self) -> Option<UnaryOperator> {
+        let op = match self {
+            TokenType::Plus => UnaryOperator::Plus,
+            TokenType::Minus => UnaryOperator::Minus,
+            TokenType::Not => UnaryOperator::Not,
+            _ => return None,
+        };
+        Some(op)
+    }
+
+    fn as_binary_op(&self) -> Option<BinaryOperator> {
+        let res = match self {
+            TokenType::Plus => BinaryOperator::Plus,
+            TokenType::Minus => BinaryOperator::Minus,
+            TokenType::Mul => BinaryOperator::Mul,
+            TokenType::Div => BinaryOperator::Div,
+            TokenType::IntDiv => BinaryOperator::IntDiv,
+
+            TokenType::LessThan => BinaryOperator::LessThan,
+            TokenType::GreaterThan => BinaryOperator::GreaterThan,
+            TokenType::LessThanEqual => BinaryOperator::LessThanEqual,
+            TokenType::GreaterThanEqual => BinaryOperator::GreaterThanEqual,
+            TokenType::Equal => BinaryOperator::Equal,
+            TokenType::NotEqual => BinaryOperator::NotEqual,
+
+            TokenType::And => BinaryOperator::And,
+            TokenType::Or => BinaryOperator::Or,
+            _ => return None,
+        };
+
+        Some(res)
     }
 }
 
