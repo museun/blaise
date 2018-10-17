@@ -512,12 +512,7 @@ impl Parser {
     }
 }
 
-trait AsOp {
-    fn as_unary_op(&self) -> Option<UnaryOperator>;
-    fn as_binary_op(&self) -> Option<BinaryOperator>;
-}
-
-impl AsOp for TokenType {
+impl TokenType {
     fn as_unary_op(&self) -> Option<UnaryOperator> {
         let op = match self {
             TokenType::Plus => UnaryOperator::Plus,
