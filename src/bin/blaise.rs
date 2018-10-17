@@ -82,7 +82,6 @@ fn main() {
         );
     }
 
-    eprintln!();
     eprintln!("{}", wrap_color!(Color::BrightYellow {}, "Evaluation=>"));
     let interpreter = Interpreter::new();
     match interpreter.evaluate(program) {
