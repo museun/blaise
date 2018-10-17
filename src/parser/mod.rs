@@ -1,7 +1,6 @@
 use crate::prelude::*;
 
 mod error;
-
 use self::ast::*;
 
 #[allow(clippy::module_inception)]

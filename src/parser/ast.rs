@@ -140,6 +140,31 @@ pub enum BinaryOperator {
     NotEqual,
 }
 
+use std::fmt;
+impl fmt::Display for BinaryOperator {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BinaryOperator::Plus => "+",
+                BinaryOperator::Minus => "-",
+                BinaryOperator::Mul => "*",
+                BinaryOperator::IntDiv => "div",
+                BinaryOperator::Div => "/",
+                BinaryOperator::And => "and",
+                BinaryOperator::Or => "or",
+                BinaryOperator::LessThan => "<",
+                BinaryOperator::GreaterThan => ">",
+                BinaryOperator::LessThanEqual => "<=",
+                BinaryOperator::GreaterThanEqual => ">=",
+                BinaryOperator::Equal => "=",
+                BinaryOperator::NotEqual => "<>",
+            }
+        )
+    }
+}
+
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct ProcedureDeclaration(pub String, pub FormalParameterList, pub Block);
 

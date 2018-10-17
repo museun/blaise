@@ -15,32 +15,29 @@ impl Parser {
         }
     }
 
-    // pub fn parse(mut self) -> Result<Program> {
-    //     traced!("parsed");
-
-    //     let program = self.program()?;
-    //     let mut tokens = self.tokens;
-    //     match tokens.next_token() {
-    //         Some(TokenType::EOF) => Ok(program),
-    //         // unexpected token
-    //         Some(t) => Err(Error::new(
-    //             ErrorKind::Unexpected(t),
-    //             tokens.span(),
-    //             self.source,
-    //             self.filename,
-    //         )),
-    //         // EOF already seen
-    //         None => Err(Error::new(
-    //             TokenType::EOF,
-    //             tokens.span(),
-    //             self.source,
-    //             self.filename,
-    //         )),
-    //     }
-    // }
+    pub fn parse(mut self) -> Result<Program> {
+        let program = self.program()?;
+        let mut tokens = self.tokens;
+        match tokens.next_token() {
+            Some(TokenType::EOF) => Ok(program),
+            // unexpected token
+            Some(t) => Err(Error::new(
+                ErrorKind::Unexpected(t),
+                tokens.span(),
+                self.source,
+                self.filename,
+            )),
+            // EOF already seen
+            None => Err(Error::new(
+                TokenType::EOF,
+                tokens.span_at(tokens.pos().saturating_sub(1)).unwrap(),
+                self.source,
+                self.filename,
+            )),
+        }
+    }
 
     pub fn program(&mut self) -> Result<Program> {
-        traced!("program");
         self.expect("program")?;
 
         let var = self.variable()?;
@@ -289,6 +286,21 @@ impl Parser {
         Ok(CallParams(params))
     }
 
+    fn grouping(&mut self) -> Result<GroupExpression> {
+        if let TokenType::OpenParen = self.current()? {
+            self.advance();
+            let expr = self.expression(None)?;
+            return match self.current()? {
+                TokenType::CloseParen => {
+                    self.advance();
+                    Ok(GroupExpression(expr))
+                }
+                t => panic!("{:?}", t),
+            };
+        };
+        panic!("{:?}", self.current()?)
+    }
+
     fn expression(&mut self, p: Option<Precedence>) -> Result<Expression> {
         let mut lhs = self.prefix(&self.current()?)?;
         let p = p.unwrap_or(Precedence::None);
@@ -393,18 +405,6 @@ impl Parser {
             CallParams::default()
         };
         Ok(FunctionCall(name.clone(), params))
-    }
-
-    fn grouping(&mut self) -> Result<GroupExpression> {
-        if let TokenType::OpenParen = self.current()? {
-            self.advance();
-            let expr = self.expression(None)?;
-            return match self.current()? {
-                TokenType::CloseParen => Ok(GroupExpression(expr)),
-                t => panic!("{:?}", t),
-            };
-        };
-        panic!("{:?}", self.current()?)
     }
 
     fn literal(&mut self) -> Result<Literal> {
@@ -838,27 +838,56 @@ mod tests {
         );
     }
 
+    fn print_expr(expr: &Expression, buf: &mut String) {
+        match expr {
+            Expression::Group(g) => {
+                let GroupExpression(expr) = &**g;
+                buf.push_str("(");
+                print_expr(&expr, buf);
+                buf.push_str(")");
+            }
+            Expression::Binary(b) => {
+                let BinaryExpression(lhs, op, rhs) = &**b;
+                print_expr(&lhs, buf);
+                buf.push_str(&format!(" {} ", op));
+                print_expr(&rhs, buf);
+            }
+            Expression::Literal(Literal::Integer(n)) => buf.push_str(&format!("{}", n)),
+            _ => {}
+        }
+    }
+
     #[test]
     fn expr_grouped() {
         let input = "(5 + 5)";
         let mut parser = make_parser(input);
+        let expr = parser.expression(None).unwrap();
+        let mut buf = String::new();
+        print_expr(&expr, &mut buf);
+        debug!("{}", buf);
+
         assert_eq!(
-            parser.expression(None),
-            Ok(Expression::Group(Box::new(GroupExpression(
-                Expression::Binary(Box::new(BinaryExpression(
+            expr,
+            Expression::Group(Box::new(GroupExpression(Expression::Binary(Box::new(
+                BinaryExpression(
                     Expression::Literal(Literal::Integer(5)),
                     BinaryOperator::Plus,
                     Expression::Literal(Literal::Integer(5)),
-                )))
-            ))))
+                )
+            )))))
         );
 
         let input = "(5 + (5 - 5))";
         let mut parser = make_parser(input);
+        let expr = parser.expression(None).unwrap();
+        let mut buf = String::new();
+        print_expr(&expr, &mut buf);
+        debug!("{}", buf);
+
         assert_eq!(
-            parser.expression(None),
-            Ok(Expression::Group(Box::new(GroupExpression(
-                Expression::Binary(Box::new(BinaryExpression(
+            expr,
+            Expression::Group(Box::new(GroupExpression(Expression::Binary(Box::new(
+                BinaryExpression(
                     Expression::Literal(Literal::Integer(5)),
                     BinaryOperator::Plus,
                     Expression::Group(Box::new(GroupExpression(Expression::Binary(Box::new(
@@ -868,9 +897,42 @@ mod tests {
                             Expression::Literal(Literal::Integer(5))
                         )
                     )))))
-                )))
-            ))))
-        )
+                )
+            )))))
+        );
+
+        let input = "((1 + 2) - 3)";
+        let mut parser = make_parser(input);
+        let expr = parser.expression(None).unwrap();
+        let mut buf = String::new();
+        print_expr(&expr, &mut buf);
+        debug!("{}", buf);
+    }
+
+    #[test]
+    #[ignore]
+    fn nested_grouping() {
+        let input = "((1 + 2) - 3)";
+
+        // let expr =
+        // Expression::Group(Box::new(GroupExpression(Expression::Binary(Box::new(
+        //     BinaryExpression(
+        //         Expression::Group(Box::new(GroupExpression(Expression::Binary(Box::
+        // new(             BinaryExpression(
+        //                 Expression::Literal(Literal::Integer(1)),
+        //                 BinaryOperator::Plus,
+        //                 Expression::Literal(Literal::Integer(2)),
+        //             ),
+        //         ))))),
+        //         BinaryOperator::Minus,
+        //         Expression::Literal(Literal::Integer(3)),
+        //     ),
+        // )))));
+        let mut parser = make_parser(input);
+        assert_eq!(
+            parser.expression(None),
+            Ok(Expression::Literal(Literal::Integer(0)))
+        );
     }
 
     #[test]
