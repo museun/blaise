@@ -50,6 +50,7 @@ pub enum TokenType {
     LabelName(String),
 
     Comment(usize, usize), // start, end
+
     Directive,
     Unknown,
     EOF,

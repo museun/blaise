@@ -21,7 +21,7 @@ pub mod prelude {
     pub use crate::lexer::*;
     pub use crate::parser::{ast, Parser};
 
-    pub use crate::colors::enable_colors;
+    pub use crate::colors::{Color, enable_colors};
     pub use crate::trace::enable_tracer;
 }
 

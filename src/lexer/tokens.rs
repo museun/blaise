@@ -15,12 +15,13 @@ impl Tokens {
         Self { data, pos: 0 }
     }
 
-    pub fn remaining(&self) -> &[Token] {
-        &self.data[self.pos()..]
-    }
-
-    pub fn tokens(&self) -> &[Token] {
-        &self.data
+    pub fn remove_comments(&mut self) {
+        self.data.retain(|s| {
+            if let TokenType::Comment(_, _) = s.token() {
+                return false;
+            }
+            true
+        })
     }
 
     pub fn span(&self) -> Span {
@@ -38,12 +39,6 @@ impl Tokens {
 
     pub fn span_at(&self, pos: usize) -> Option<Span> {
         self.data.get(pos).map(|s| s.span())
-    }
-
-    pub fn remove_comments(&mut self) {
-        use std::mem::discriminant;
-        let comment = discriminant(&TokenType::Comment(0, 0));
-        self.data.retain(|t| discriminant(&t.token()) != comment)
     }
 
     pub fn is_empty(&self) -> bool {

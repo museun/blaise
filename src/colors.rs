@@ -2,31 +2,30 @@ use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub(crate) static COLOR_ENABLED: AtomicBool = AtomicBool::new(false);
+pub(crate) fn colors_enabled() -> bool {
+    COLOR_ENABLED.load(Ordering::Relaxed)
+}
+
 pub fn enable_colors() {
     COLOR_ENABLED.store(true, Ordering::Relaxed);
 }
 
-pub(crate) fn colors_enabled() -> bool {
-    COLOR_ENABLED.load(::std::sync::atomic::Ordering::Relaxed)
-}
-
 #[derive(Copy, Clone)]
 pub enum Color {
-    Red,
-    Green,
-    Yellow,
-    Blue,
-    Magenta,
-    Cyan,
-    White,
-
-    BrightRed,
-    BrightGreen,
-    BrightYellow,
-    BrightBlue,
-    BrightMagenta,
-    BrightCyan,
-    BrightWhite,
+    Red = 1,
+    Green = 2,
+    Yellow = 3,
+    Blue = 4,
+    Magenta = 5,
+    Cyan = 6,
+    White = 7,
+    BrightRed = 8,
+    BrightGreen = 9,
+    BrightYellow = 10,
+    BrightBlue = 11,
+    BrightMagenta = 12,
+    BrightCyan = 13,
+    BrightWhite = 14,
 }
 
 impl fmt::Display for Color {
@@ -89,10 +88,10 @@ impl Color {
 #[macro_export]
 macro_rules! wrap_color {
     ($color:expr, $fmt:expr) => {{
-        if colors_enabled() {
-            format!("{}{}{}", $color.get(), fmt, Color::reset())
+        if $crate::colors::colors_enabled()  {
+            format!("{}{}{}", $color.get(), $fmt, Color::reset())
         } else {
-            format!("{}", fmt)
+            format!("{}", $fmt)
         }
     }};
     ($color:expr, $fmt:expr, $($arg:tt)*) => {{

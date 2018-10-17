@@ -42,7 +42,6 @@ pub fn scan(input: &str) -> Tokens {
             continue;
         }
 
-        let span = Span::new(col, row);
         let mut error = None;
         'inner: for lexer in &lexers {
             match lexer(&mut stream.clone()) {
@@ -51,10 +50,12 @@ pub fn scan(input: &str) -> Tokens {
                 State::Consume(n) => skip += n,
                 State::Produce(n, TokenType::Comment(_, end)) => {
                     skip += n;
+                    let span = Span::new(col, row, n);
                     data.push(Token::new(span, TokenType::Comment(row, row + end)))
                 }
                 State::Produce(n, token) => {
                     skip += n;
+                    let span = Span::new(col, row, n);
                     data.push(Token::new(span, token))
                 }
             }
@@ -62,14 +63,17 @@ pub fn scan(input: &str) -> Tokens {
         }
 
         match error {
-            Some(Error::UnknownToken) => data.push(Token::new(span, TokenType::Unknown)),
+            Some(Error::UnknownToken) => {
+                let span = Span::new(col, row, 0);
+                data.push(Token::new(span, TokenType::Unknown))
+            }
             _e => {}
         }
 
         stream.advance(1);
     }
 
-    data.push(Token::new(Span::new(col, row), TokenType::EOF));
+    data.push(Token::new(Span::new(col, row, 0), TokenType::EOF));
     Tokens::new(data)
 }
 
@@ -104,7 +108,7 @@ fn whitespace_lexer(stream: &mut Stream<'_>) -> State {
         }
     }
 
-    State::Consume(skip.checked_sub(1).or_else(|| Some(0)).unwrap())
+    State::Consume(skip.saturating_sub(1))
 }
 
 fn symbol_lexer(stream: &mut Stream<'_>) -> State {

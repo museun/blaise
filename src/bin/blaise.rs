@@ -45,6 +45,7 @@ fn main() {
 
     let mut tokens = scan(&input);
     tokens.remove_comments();
+
     if config.show_tokens {
         eprintln!("{}", tokens);
     }

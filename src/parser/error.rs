@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::*;
 use std::fmt;
 
 #[derive(Debug, PartialEq)]
@@ -14,8 +15,18 @@ impl fmt::Display for Error {
         let line = self.source.lines().nth(self.span.row() - 1).unwrap();
         let (data, adjusted) = midpoint(line, self.span.column() - 1, 80);
         writeln!(f, "{}", data)?;
-        writeln!(f, "{}", draw_caret(adjusted));
-        write!(f, "{}:{} {}", self.file, self.span, self.kind)
+        writeln!(
+            f,
+            "{}",
+            wrap_color!(Color::BrightRed {}, draw_caret(adjusted))
+        );
+        write!(
+            f,
+            "{}:{} {}",
+            wrap_color!(Color::Green {}, self.file),
+            wrap_color!(Color::BrightMagenta {}, self.span),
+            self.kind
+        )
     }
 }
 
@@ -53,29 +64,49 @@ pub enum ErrorKind {
 impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ErrorKind::Unknown(reason) => write!(f, "error message: {}", reason),
+            ErrorKind::Unknown(reason) => write!(
+                f,
+                "{} {}",
+                wrap_color!(Color::Yellow {}, "error message:"),
+                reason
+            ),
             ErrorKind::Expected(wanted, got) => {
                 if wanted.len() > 1 {
                     write!(
                         f,
-                        "expected one of: {}, got {}",
-                        wanted
-                            .iter()
-                            .map(|s| format!("{}", s))
-                            .fold(String::new(), |mut a, c| {
-                                if !a.is_empty() {
-                                    a.push_str(", ");
+                        "{} {}, got {}",
+                        wrap_color!(Color::Yellow {}, "expected one of:"),
+                        wrap_color!(
+                            Color::Cyan {},
+                            wanted.iter().map(|s| format!("{}", s)).fold(
+                                String::new(),
+                                |mut a, c| {
+                                    if !a.is_empty() {
+                                        a.push_str(", ");
+                                    }
+                                    a.push_str(&c);
+                                    a
                                 }
-                                a.push_str(&c);
-                                a
-                            }),
-                        got
+                            )
+                        ),
+                        wrap_color!(Color::Red {}, got)
                     )
                 } else {
-                    write!(f, "expected {} got {}", wanted[0], got)
+                    write!(
+                        f,
+                        "{} {} got {}",
+                        wrap_color!(Color::Yellow {}, "expected:"),
+                        wrap_color!(Color::Cyan {}, wanted[0]),
+                        wrap_color!(Color::Red {}, got)
+                    )
                 }
             }
-            ErrorKind::Unexpected(token) => write!(f, "unexpected: {}", token),
+            ErrorKind::Unexpected(token) => write!(
+                f,
+                "{} {}",
+                wrap_color!(Color::Yellow {}, "unexpected:"),
+                wrap_color!(Color::Red {}, token)
+            ),
         }
     }
 }

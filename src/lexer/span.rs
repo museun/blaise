@@ -5,11 +5,12 @@ use std::fmt;
 pub struct Span {
     row: usize,
     col: usize,
+    len: usize,
 }
 
 impl Span {
-    pub fn new(row: usize, col: usize) -> Self {
-        Self { row, col }
+    pub fn new(row: usize, col: usize, len: usize) -> Self {
+        Self { row, col, len }
     }
 
     #[inline(always)]
@@ -19,7 +20,12 @@ impl Span {
 
     #[inline(always)]
     pub fn column(&self) -> usize {
-        self.col + 1
+        self.col + self.length()
+    }
+
+    #[inline(always)]
+    pub fn length(&self) -> usize {
+        self.len + 1
     }
 
     pub fn total_width(&self) -> usize {

@@ -315,7 +315,8 @@ impl Parser {
     }
 
     fn expression(&mut self, p: Option<Precedence>) -> Result<Expression> {
-        let mut lhs = self.prefix(&self.current()?)?;
+        let current = &self.current()?;
+        let mut lhs = self.prefix(current)?;
         let p = p.unwrap_or(Precedence::None);
 
         let next = |token| {
@@ -438,7 +439,7 @@ impl Parser {
         };
 
         let params = if let TokenType::OpenParen = self.current()? {
-            self.tokens.advance();
+            self.advance();
             self.call_params()?
         } else {
             CallParams::default()
@@ -496,11 +497,11 @@ impl Parser {
         }
     }
 
-    fn peek(&self) -> Option<TokenType> {
+    fn peek(&mut self) -> Option<TokenType> {
         self.tokens.peek()
     }
 
-    fn current(&self) -> Result<TokenType> {
+    fn current(&mut self) -> Result<TokenType> {
         match self.tokens.current().take() {
             Some(t) => Ok(t),
             None => self.unexpected(TokenType::EOF),
@@ -523,10 +524,11 @@ impl Parser {
         self.expected(&[tok])
     }
 
-    fn expected<E: Into<TokenType> + Clone, T>(&self, tok: &[E]) -> Result<T> {
+    fn expected<E: Into<TokenType> + Clone, T>(&mut self, tok: &[E]) -> Result<T> {
+        let current = self.current()?;
         self.error(ErrorKind::Expected(
             tok.iter().map(|s| s.clone().into()).collect::<Vec<_>>(),
-            self.current()?,
+            current,
         ))
     }
 
