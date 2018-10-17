@@ -89,12 +89,17 @@ impl<'a> Tracer<'a> {
             .collect::<String>()
             .into();
 
-        let data = data.into();
+        let data = if data.is_empty() {
+            data.into()
+        } else {
+            format!(": {}", data).into()
+        };
+
         let label: String = label.into();
         let label = label.into();
         if TRACER_ENABLED.load(::std::sync::atomic::Ordering::Relaxed) {
             let pad = wrap_color!(colors::next_color(level()), "{}>", pad);
-            eprintln!("{}{}: {}", pad, label, data);
+            eprintln!("{} {}{}", pad, label, data);
         }
         indent();
         Tracer { label, pad, data }
@@ -106,7 +111,7 @@ impl<'a> Drop for Tracer<'a> {
         dedent();
         if TRACER_ENABLED.load(::std::sync::atomic::Ordering::Relaxed) {
             let pad = wrap_color!(colors::next_color(level()), "<{}", self.pad);
-            eprintln!("{}{}: {}", pad, self.label, self.data);
+            eprintln!("{} {}{}", pad, self.label, self.data);
         }
     }
 }

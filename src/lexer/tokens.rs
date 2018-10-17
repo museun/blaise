@@ -131,7 +131,7 @@ pub fn dump_to<W: Write>(mut w: W, s: &[Token]) {
             a
         });
 
-    for (span, tok) in s.iter().map(|t| (t.span(), t)) {
+    for (i, (span, tok)) in s.iter().map(|t| (t.span(), t)).enumerate() {
         let len = span_width - span.total_width();
         let tlen = token_width - tok.width();
         write!(
@@ -140,6 +140,10 @@ pub fn dump_to<W: Write>(mut w: W, s: &[Token]) {
             format_args!("{}{: <width$}  ", span, "", width = len)
         )
         .expect("write");
-        writeln!(w, "{}", format_token(&tok, tlen)).expect("writeln");
+        if i < s.len() - 1 {
+            writeln!(w, "{}", format_token(&tok, tlen)).expect("writeln");
+        } else {
+            write!(w, "{}", format_token(&tok, tlen)).expect("write");
+        }
     }
 }

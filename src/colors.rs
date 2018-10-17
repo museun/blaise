@@ -1,8 +1,8 @@
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-pub(crate) static COLOR_ENABLED: AtomicBool = AtomicBool::new(false);
-pub(crate) fn colors_enabled() -> bool {
+pub static COLOR_ENABLED: AtomicBool = AtomicBool::new(false);
+pub fn colors_enabled() -> bool {
     COLOR_ENABLED.load(Ordering::Relaxed)
 }
 

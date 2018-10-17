@@ -8,7 +8,7 @@ extern crate log;
 pub(crate) mod trace;
 
 #[macro_use]
-pub(crate) mod colors;
+pub mod colors;
 
 pub mod config;
 
@@ -16,6 +16,7 @@ mod interpreter;
 mod lexer;
 mod parser;
 
+#[macro_use]
 pub mod prelude {
     pub use crate::interpreter::Interpreter;
     pub use crate::lexer::*;

@@ -1,5 +1,8 @@
 use std::{env,fs};
 
+#[macro_use]
+extern crate blaise;
+
 use blaise::prelude::*;
 use blaise::config::*;
 
@@ -40,25 +43,46 @@ fn main() {
 
     let input = fs::read_to_string(&file).expect("read");
     if config.show_source {
-        eprintln!("{}\n", input);
+        eprintln!(
+            "{}\n{}",
+            wrap_color!(Color::BrightYellow {}, "Source=>"),
+            input
+        );
     }
 
     let mut tokens = scan(&input);
     tokens.remove_comments();
 
     if config.show_tokens {
-        eprintln!("{}", tokens);
+        eprintln!(
+            "{}\n{}",
+            wrap_color!(Color::BrightYellow {}, "Tokens=>"),
+            tokens
+        );
     }
 
+    if config.show_trace {
+        enable_tracer();
+        eprintln!("{}", wrap_color!(Color::BrightYellow {}, "Parse trace=>"));
+    }
     let parser = Parser::new(tokens, input, file);
     let program = match parser.parse() {
         Ok(program) => program,
         Err(err) => die(&format!("{}", err)),
     };
-    if config.show_ast {
-        eprintln!("{:#?}", program);
+    if config.show_trace {
+        eprintln!();
     }
 
+    if config.show_ast {
+        eprintln!(
+            "{}\n{:#?}",
+            wrap_color!(Color::BrightYellow {}, "AST=>"),
+            program
+        );
+    }
+
+    eprintln!("{}", wrap_color!(Color::BrightYellow {}, "Result=>"));
     let mut interpreter = Interpreter::new();
     interpreter.evaluate(program);
 }
