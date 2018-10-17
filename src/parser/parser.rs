@@ -19,18 +19,11 @@ impl Parser {
         let program = self.program()?;
         let mut tokens = self.tokens;
         match tokens.next_token() {
-            Some(TokenType::EOF) => Ok(program),
+            Some(TokenType::EOF) | None => Ok(program),
             // unexpected token
             Some(t) => Err(Error::new(
                 ErrorKind::Unexpected(t),
                 tokens.span(),
-                self.source,
-                self.filename,
-            )),
-            // EOF already seen
-            None => Err(Error::new(
-                TokenType::EOF,
-                tokens.span_at(tokens.pos().saturating_sub(1)).unwrap(),
                 self.source,
                 self.filename,
             )),
@@ -51,6 +44,7 @@ impl Parser {
 
     fn block(&mut self) -> Result<Block> {
         let decls = self.declarations()?;
+        debug!("decls: {:#?}", decls);
         let compound = self.compound_statement()?;
         Ok(Block(decls, compound))
     }
@@ -72,11 +66,21 @@ impl Parser {
             match self.current()? {
                 TokenType::Procedure => {
                     procs.push(self.procedure_declaration()?);
+                    if let TokenType::SemiColon = self.current()? {
+                        self.advance();
+                    }
                 }
                 TokenType::Function => {
                     funcs.push(self.function_declaration()?);
+                    if let TokenType::SemiColon = self.current()? {
+                        self.advance();
+                    }
                 }
-                _ => break,
+
+                t => {
+                    trace!("decl other: current: {:?}", t);
+                    break;
+                }
             };
         }
 
@@ -477,7 +481,12 @@ impl Parser {
             self.tokens.advance();
             return Ok(current);
         }
-        panic!("{:?} -> {:?}", tok, current);
+        panic!(
+            "{} expected {:?} got {:?}",
+            self.tokens.span(),
+            tok,
+            current
+        );
     }
 
     fn expected_token<T: Into<TokenType>>(&mut self, tok: T) -> Result<()> {

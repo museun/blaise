@@ -59,7 +59,7 @@ fn main() {
     let program = match parser.parse() {
         Ok(program) => program,
         Err(err) => {
-            error!("\n{:?}", err);
+            error!("-->{:?}", err);
             ::std::process::exit(1);
         }
     };

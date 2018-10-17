@@ -114,8 +114,8 @@ impl Interpreter {
             Statement::Assignment(assign) => self.visit_assignment(assign),
             Statement::FunctionCall(call) => self.visit_function_call(call),
             Statement::IfStatement(stmt) => self.visit_if_statement(*stmt),
+            Statement::Repetitive(stmt) => self.visit_repetitive(stmt),
             Statement::Empty => Ok(Object::Unit),
-            e => unimplemented!("{:#?}", e),
         }
     }
 
@@ -152,11 +152,6 @@ impl Interpreter {
             Some(Object::Builtin(Builtin::ReadLn(f))) => f(),
             _ => Err(Error::UnknownFunction(func.to_string()))?,
         }
-    }
-
-    fn visit_group(&mut self, node: GroupExpression) -> Result<Object> {
-        let GroupExpression(expr) = node;
-        self.visit_expression(expr)
     }
 
     fn visit_if_statement(&mut self, node: IfStatement) -> Result<Object> {
@@ -196,6 +191,81 @@ impl Interpreter {
         }
     }
 
+    fn get_bool_expr(&mut self, expr: Expression) -> Result<bool> {
+        match expr {
+            Expression::Boolean(expr) => match self.visit_binary_op(*expr.clone())? {
+                Object::Primitive(Primitive::Boolean(b)) => Ok(b),
+                e => panic!("invalid expr, requires boolean got: {:?}", e),
+            },
+            e => panic!("invalid expr, requires boolean got: {:?}", e),
+        }
+    }
+
+    fn visit_repetitive(&mut self, node: Repetitive) -> Result<Object> {
+        match &node {
+            Repetitive::Repeat(statements, expr) => self.visit_repeat(statements, expr),
+            Repetitive::While(expr, compound) => self.visit_while(expr, compound),
+            // too many
+            Repetitive::For(_, _, _, _, _) => self.visit_for(&node),
+        }
+    }
+
+    fn visit_repeat(&mut self, statements: &[Statement], expr: &Expression) -> Result<Object> {
+        // just to make sure its a bool expr, a semantic pass will fix this
+        let _ = self.get_bool_expr(expr.clone())?;
+        loop {
+            for stmt in statements {
+                let _res = self.visit_statement(stmt.clone())?;
+            }
+            if self.get_bool_expr(expr.clone())? {
+                return Ok(Object::Unit);
+            }
+        }
+    }
+
+    fn visit_while(&mut self, expr: &Expression, compound: &Compound) -> Result<Object> {
+        loop {
+            if !self.get_bool_expr(expr.clone())? {
+                return Ok(Object::Unit);
+            }
+            let _res = self.visit_compound(compound.clone())?;
+        }
+    }
+
+    // too much typing to pass the million params
+    fn visit_for(&mut self, f: &Repetitive) -> Result<Object> {
+        if let Repetitive::For(var, start, direction, end, compound) = f {
+            // for var := start _dir_ end do begin
+            //   _compound_
+            // end
+
+            // TODO make sure types are equivilant
+            // just to check
+            let var = self.visit_variable(var.clone())?;
+            let var = self.visit_expression(start.clone())?;
+            if let Object::Primitive(Primitive::Integer(mut start)) = var {
+                if let Object::Primitive(Primitive::Integer(end)) =
+                    self.visit_expression(end.clone())?
+                {
+                    while start != end {
+                        match direction {
+                            Direction::To => start += 1,
+                            Direction::DownTo => start -= 1,
+                        }
+                        let _res = self.visit_compound(compound.clone())?;
+                    }
+                    return Ok(Object::Unit);
+                } else {
+                    panic!("var must evaluate to be a primitive integer")
+                }
+            } else {
+                panic!("var must evaluate to be a primitive integer")
+            }
+        }
+
+        unreachable!("end of for")
+    }
+
     fn visit_assignment(&mut self, node: Assignment) -> Result<Object> {
         let Assignment(Variable(name), expr) = node;
         let val = self.visit_expression(expr)?;
@@ -206,13 +276,17 @@ impl Interpreter {
     fn visit_expression(&mut self, node: Expression) -> Result<Object> {
         match node {
             Expression::Unary(expr) => self.visit_unary_op(*expr),
-            Expression::Binary(expr) => self.visit_binary_op(*expr),
+            Expression::Binary(expr) | Expression::Boolean(expr) => self.visit_binary_op(*expr),
             Expression::Literal(expr) => self.visit_literal(expr),
             Expression::Variable(expr) => self.visit_variable(expr),
             Expression::FunctionCall(call) => self.visit_function_call(call),
             Expression::Group(expr) => self.visit_group(*expr),
-            e => unimplemented!("{:#?}", e),
         }
+    }
+
+    fn visit_group(&mut self, node: GroupExpression) -> Result<Object> {
+        let GroupExpression(expr) = node;
+        self.visit_expression(expr)
     }
 
     fn visit_unary_op(&mut self, node: UnaryExpression) -> Result<Object> {
