@@ -17,13 +17,12 @@ impl Parser {
 
     pub fn parse(mut self) -> Result<Program> {
         let program = self.program()?;
-        let mut tokens = self.tokens;
-        match tokens.next_token() {
-            Some(TokenType::EOF) | None => Ok(program),
+        match self.next()? {
+            TokenType::EOF => Ok(program),
             // unexpected token
-            Some(t) => Err(Error::new(
+            t => Err(Error::new(
                 ErrorKind::Unexpected(t),
-                tokens.span(),
+                self.tokens.span(),
                 self.source,
                 self.filename,
             )),
