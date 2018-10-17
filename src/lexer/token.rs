@@ -214,7 +214,15 @@ impl fmt::Display for TokenType {
             GreaterThanEqual => ">=",
             Assign => ":=",
             SubRange => "..",
-            _ => return write!(f, "{}", format!("{:?}", self).to_ascii_lowercase()),
+
+            Identifier(s) => return write!(f, "{} : Identifier", s),
+            Integer(n) => return write!(f, "{} : Integer", n),
+            Real(r) => return write!(f, "{} : Real", r),
+            String(s) => return write!(f, "{} : String", s),
+            TypeName(ty) => return write!(f, "{:?} : Type", ty),
+            LabelName(l) => return write!(f, "{} : Label", l),
+
+            _ => return write!(f, "{}", format!("{:?}", self)),
         };
 
         write!(f, "{}", s)

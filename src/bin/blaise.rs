@@ -1,8 +1,4 @@
-#[macro_use]
-extern crate log;
-
-use std::env;
-use std::fs;
+use std::{env,fs};
 
 use blaise::prelude::*;
 use blaise::config::*;
@@ -56,10 +52,7 @@ fn main() {
     let parser = Parser::new(tokens, input, file);
     let program = match parser.parse() {
         Ok(program) => program,
-        Err(err) => {
-            error!("-->{:?}", err);
-            ::std::process::exit(1);
-        }
+        Err(err) => die(&format!("{}", err)),
     };
     if config.show_ast {
         eprintln!("{:#?}", program);

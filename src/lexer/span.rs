@@ -19,17 +19,17 @@ impl Span {
 
     #[inline(always)]
     pub fn column(&self) -> usize {
-        self.col
+        self.col + 1
     }
 
     pub fn total_width(&self) -> usize {
         // 2 for the colons
-        1 + count_digits(self.row) + count_digits(self.col)
+        1 + count_digits(self.row()) + count_digits(self.column())
     }
 }
 
 impl fmt::Display for Span {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.row, self.col)
+        write!(f, "{}:{}", self.row(), self.column())
     }
 }

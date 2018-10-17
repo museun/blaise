@@ -1,5 +1,6 @@
 use super::*;
 
+#[derive(Debug)]
 pub struct Parser {
     tokens: Tokens,
     source: String,
@@ -17,15 +18,23 @@ impl Parser {
 
     pub fn parse(mut self) -> Result<Program> {
         let program = self.program()?;
-        match self.next() {
-            Some(TokenType::EOF) | None => Ok(program),
+        self.advance();
+        match self.current() {
+            Ok(TokenType::EOF)
+            | Err(Error {
+                kind: ErrorKind::Unexpected(TokenType::EOF),
+                ..
+            }) => Ok(program),
+
             // unexpected token
-            Some(t) => Err(Error::new(
+            Ok(t) => Err(Error::new(
                 ErrorKind::Unexpected(t),
                 self.tokens.span(),
                 self.source,
                 self.filename,
             )),
+
+            Err(err) => Err(err),
         }
     }
 
@@ -56,7 +65,7 @@ impl Parser {
                 vars.push(self.variable_declaration()?)
             }
             if vars.is_empty() {
-                panic!("{:?}", self.current()?)
+                self.error("var should be followed by variable declarations")?
             }
         }
 
@@ -193,14 +202,13 @@ impl Parser {
             TokenType::Identifier(_) => match self.peek() {
                 Some(TokenType::OpenParen) => FunctionCall(self.function_call()?),
                 Some(TokenType::Assign) => Assignment(self.assignment_statement()?),
-                t => panic!("{:?}", t),
+                _ => self.expected(&[TokenType::OpenParen, TokenType::Assign])?,
             },
             TokenType::If => IfStatement(Box::new(self.if_statement()?)),
             TokenType::Repeat | TokenType::While | TokenType::For => Repetitive(self.repetitive()?),
             TokenType::End | TokenType::SemiColon => Statement::Empty,
-            t => panic!("{:?}", t),
+            t => self.unexpected(t)?,
         };
-        trace!("stmt cur: {:?}", self.current()?);
 
         Ok(res)
     }
@@ -230,7 +238,7 @@ impl Parser {
         self.expect("then")?;
         let statement = self.statement()?;
 
-        Ok(if self.consume("else") {
+        let if_ = if self.consume("else") {
             if let Ok(TokenType::If) = self.current() {
                 // don't eat the if
                 IfStatement::IfElseIf(expr, statement, Box::new(self.if_statement()?))
@@ -239,14 +247,15 @@ impl Parser {
             }
         } else {
             IfStatement::If(expr, statement)
-        })
+        };
+
+        Ok(if_)
     }
 
     fn repetitive(&mut self) -> Result<Repetitive> {
         match self.current()? {
             TokenType::Repeat => {
                 self.tokens.advance();
-                // repeat stmt-seq until bool-expr
                 let mut statements = vec![self.statement()?];
                 while !self.consume("until") {
                     self.expect(";")?;
@@ -260,7 +269,6 @@ impl Parser {
                 self.tokens.advance();
                 // TODO check to see if this is boolean
                 let expr = self.expression(None)?;
-                trace!("expr: {:#?}", expr);
                 self.expect("do")?;
                 let comp = self.compound_statement()?;
                 Ok(Repetitive::While(expr, comp))
@@ -273,7 +281,7 @@ impl Parser {
                 let dir = match self.current()? {
                     TokenType::To => Direction::To,
                     TokenType::Downto => Direction::DownTo,
-                    t => panic!("{:?}", t),
+                    t => self.expected(&[TokenType::To, TokenType::Downto])?,
                 };
                 self.advance();
                 let end = self.expression(None)?;
@@ -299,20 +307,11 @@ impl Parser {
     }
 
     fn grouping(&mut self) -> Result<GroupExpression> {
-        if let TokenType::OpenParen = self.current()? {
-            self.advance();
-            let expr = self.expression(None)?;
+        self.expect("(")?;
+        let expr = self.expression(None)?;
+        self.expect(")")?;
 
-            return match self.current()? {
-                TokenType::CloseParen => {
-                    self.advance();
-                    Ok(GroupExpression(expr))
-                }
-                t => panic!("{:?}", t),
-            };
-        };
-
-        panic!("{:?}", self.current()?)
+        Ok(GroupExpression(expr))
     }
 
     fn expression(&mut self, p: Option<Precedence>) -> Result<Expression> {
@@ -355,7 +354,16 @@ impl Parser {
             OpenParen => Expression::Group(Box::new(self.grouping()?)),
             // variable
             Identifier(_) => Expression::Variable(self.variable()?),
-            t => panic!("{:?}", t),
+            t => self.expected(&[
+                Integer(0),
+                Real(0.),
+                String("".into()),
+                Plus,
+                Minus,
+                Not,
+                OpenParen,
+                Identifier("".into()),
+            ])?,
         };
 
         Ok(ok)
@@ -388,7 +396,22 @@ impl Parser {
             }
             // call
             OpenParen => Expression::FunctionCall(self.function_call_expr(lhs)?),
-            t => panic!("{:?}", t),
+            _ => self.expected(&[
+                Plus,
+                Minus,
+                Mul,
+                IntDiv,
+                Div,
+                And,
+                Or,
+                LessThan,
+                GreaterThan,
+                LessThanEqual,
+                GreaterThanEqual,
+                Equal,
+                NotEqual,
+                OpenParen,
+            ])?,
         };
 
         Ok(ok)
@@ -411,7 +434,7 @@ impl Parser {
     fn function_call_expr(&mut self, lhs: Expression) -> Result<FunctionCall> {
         let name = match lhs {
             Expression::Variable(name) => name,
-            e => panic!("{:?}", e),
+            e => self.error("variable expression required for function_call_expr")?,
         };
 
         let params = if let TokenType::OpenParen = self.current()? {
@@ -431,7 +454,13 @@ impl Parser {
             TokenType::True => Literal::Boolean(true),
             TokenType::False => Literal::Boolean(false),
             TokenType::String(n) => Literal::String(n),
-            t => panic!("{:?}", t),
+            t => self.expected(&[
+                TokenType::Integer(0),
+                TokenType::Real(0.),
+                TokenType::True,
+                TokenType::False,
+                TokenType::String("".into()),
+            ])?,
         };
         self.advance();
 
@@ -439,32 +468,27 @@ impl Parser {
     }
 
     fn variable(&mut self) -> Result<Variable> {
-        let name = self.identifier()?;
-
-        Ok(Variable(name.clone()))
+        Ok(Variable(self.identifier()?))
     }
 
     fn ty(&mut self) -> Result<Type> {
-        if let TokenType::TypeName(ty) = self.expect(TokenType::TypeName(token::Type::Unit))? {
-            return Ok(ty.into());
+        match self.expect(TokenType::TypeName(token::Type::Unit))? {
+            TokenType::TypeName(ty) => Ok(ty.into()),
+            _ => unreachable!(),
         }
-
-        panic!("{:?}", self.current()?)
     }
 
     fn identifier(&mut self) -> Result<String> {
-        if let TokenType::Identifier(id) = self.expect(TokenType::Identifier("".into()))? {
-            return Ok(id.clone());
+        match self.expect(TokenType::Identifier("".into()))? {
+            TokenType::Identifier(id) => Ok(id),
+            _ => unreachable!(),
         }
-
-        panic!("{:?}", self.current()?)
     }
 
     fn consume<T: Into<TokenType>>(&mut self, tok: T) -> bool {
         let tok = tok.into();
         match self.current() {
             Ok(ref t) if *t == tok => {
-                trace!("consumed");
                 self.tokens.advance();
                 true
             }
@@ -473,24 +497,21 @@ impl Parser {
     }
 
     fn peek(&self) -> Option<TokenType> {
-        let t = self.tokens.peek();
-        trace!("peek: {:?}", t);
-        t
+        self.tokens.peek()
     }
 
     fn current(&self) -> Result<TokenType> {
-        self.tokens.current().take().ok_or_else(|| panic!())
+        match self.tokens.current().take() {
+            Some(t) => Ok(t),
+            None => self.unexpected(TokenType::EOF),
+        }
     }
 
     fn advance(&mut self) {
         self.tokens.advance()
     }
 
-    fn next(&mut self) -> Option<TokenType> {
-        self.tokens.next_token().take()
-    }
-
-    fn expect<T: Into<TokenType>>(&mut self, tok: T) -> Result<TokenType> {
+    fn expect<T: Into<TokenType> + Clone>(&mut self, tok: T) -> Result<TokenType> {
         use std::mem::discriminant;
         let current = self.current()?;
         let tok = tok.into();
@@ -498,17 +519,29 @@ impl Parser {
             self.tokens.advance();
             return Ok(current);
         }
-        panic!(
-            "{} expected {:?} got {:?}",
-            self.tokens.span(),
-            tok,
-            current
-        );
+
+        self.expected(&[tok])
     }
 
-    fn expected_token<T: Into<TokenType>>(&mut self, tok: T) -> Result<()> {
-        let tok = tok.into();
-        unimplemented!();
+    fn expected<E: Into<TokenType> + Clone, T>(&self, tok: &[E]) -> Result<T> {
+        self.error(ErrorKind::Expected(
+            tok.iter().map(|s| s.clone().into()).collect::<Vec<_>>(),
+            self.current()?,
+        ))
+    }
+
+    fn unexpected<E: Into<TokenType>, T>(&self, tok: E) -> Result<T> {
+        self.error(ErrorKind::Unexpected(tok.into()))
+    }
+
+    fn error<E: Into<ErrorKind>, T>(&self, err: E) -> Result<T> {
+        let error = Error::new(
+            err,
+            self.tokens.previous_span(),
+            self.source.clone(),
+            self.filename.clone(),
+        );
+        Err(error)
     }
 }
 

@@ -15,7 +15,7 @@ impl fmt::Display for Error {
         let (data, adjusted) = midpoint(line, self.span.column() - 1, 80);
         writeln!(f, "{}", data)?;
         writeln!(f, "{}", draw_caret(adjusted));
-        write!(f, "{} {:?}", self.span, self.kind)
+        write!(f, "{}:{} {}", self.file, self.span, self.kind)
     }
 }
 
@@ -46,21 +46,42 @@ impl Error {
 #[derive(Debug, PartialEq)]
 pub enum ErrorKind {
     Unknown(String),
-    Expected(TokenType),
+    Expected(Vec<TokenType>, TokenType),
     Unexpected(TokenType),
 }
 
-impl From<TokenType> for ErrorKind {
-    fn from(token: TokenType) -> Self {
-        ErrorKind::Expected(token)
+impl fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ErrorKind::Unknown(reason) => write!(f, "error message: {}", reason),
+            ErrorKind::Expected(wanted, got) => {
+                if wanted.len() > 1 {
+                    write!(
+                        f,
+                        "expected one of: {}, got {}",
+                        wanted
+                            .iter()
+                            .map(|s| format!("{}", s))
+                            .fold(String::new(), |mut a, c| {
+                                if !a.is_empty() {
+                                    a.push_str(", ");
+                                }
+                                a.push_str(&c);
+                                a
+                            }),
+                        got
+                    )
+                } else {
+                    write!(f, "expected {} got {}", wanted[0], got)
+                }
+            }
+            ErrorKind::Unexpected(token) => write!(f, "unexpected: {}", token),
+        }
     }
 }
 
 impl<'a> From<&'a str> for ErrorKind {
     fn from(s: &'a str) -> Self {
-        if let Some(t) = TokenType::try_parse(s) {
-            return t.into();
-        }
         ErrorKind::Unknown(s.into())
     }
 }
@@ -79,6 +100,6 @@ fn midpoint(input: &str, cursor: usize, width: usize) -> (&str, usize) {
 }
 
 fn draw_caret(width: usize) -> String {
-    let s = ::std::iter::repeat(" ").take(width).collect::<String>();
-    format!("{}^", s)
+    use std::iter::repeat;
+    format!("{}^", repeat(" ").take(width).collect::<String>())
 }

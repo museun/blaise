@@ -24,7 +24,16 @@ impl Tokens {
     }
 
     pub fn span(&self) -> Span {
-        self.span_at(self.pos()).expect("a span")
+        self.span_at(if self.pos() >= self.data.len() {
+            self.pos().saturating_sub(1)
+        } else {
+            self.pos()
+        })
+        .expect("a span")
+    }
+
+    pub fn previous_span(&self) -> Span {
+        self.span_at(self.pos().saturating_sub(1)).expect("a span")
     }
 
     pub fn span_at(&self, pos: usize) -> Option<Span> {
@@ -54,9 +63,7 @@ impl Tokens {
     }
 
     pub fn current(&self) -> Option<TokenType> {
-        let n = self.data.get(self.pos()).cloned().map(|s| s.token());
-        trace!("current: {:?}", n);
-        n
+        self.data.get(self.pos()).cloned().map(|s| s.token())
     }
 
     pub fn next_token(&mut self) -> Option<TokenType> {
