@@ -8,10 +8,10 @@ use self::token::Type;
 pub mod token;
 
 pub use self::span::Span;
-pub use self::token::{Reserved, Symbol, Token};
+pub use self::token::{Token, TokenType};
 pub use self::tokens::Tokens;
 
-pub fn scan(file: &str, input: &str) -> Tokens {
+pub fn scan(input: &str) -> Tokens {
     let lexers = [
         whitespace_lexer,
         directive_lexer,
@@ -42,35 +42,35 @@ pub fn scan(file: &str, input: &str) -> Tokens {
             continue;
         }
 
-        let span = Span::new(file, col, row);
+        let span = Span::new(col, row);
         let mut error = None;
         'inner: for lexer in &lexers {
             match lexer(&mut stream.clone()) {
                 State::Yield => continue,
                 State::Error(err) => error = Some(err),
                 State::Consume(n) => skip += n,
-                State::Produce(n, Token::Comment(_, end)) => {
+                State::Produce(n, TokenType::Comment(_, end)) => {
                     skip += n;
-                    data.push((span.clone(), Token::Comment(row, row + end)))
+                    data.push(Token::new(span, TokenType::Comment(row, row + end)))
                 }
                 State::Produce(n, token) => {
                     skip += n;
-                    data.push((span.clone(), token))
+                    data.push(Token::new(span, token))
                 }
             }
             break 'inner;
         }
 
         match error {
-            Some(Error::UnknownToken) => data.push((span, Token::Unknown)),
+            Some(Error::UnknownToken) => data.push(Token::new(span, TokenType::Unknown)),
             _e => {}
         }
 
         stream.advance(1);
     }
 
-    data.push((Span::new(file, col, row), Token::EOF));
-    Tokens::new(data, input.into())
+    data.push(Token::new(Span::new(col, row), TokenType::EOF));
+    Tokens::new(data)
 }
 
 enum Error {
@@ -82,7 +82,7 @@ enum State {
     Yield,
     Error(Error),
     Consume(usize),
-    Produce(usize, Token),
+    Produce(usize, TokenType),
 }
 
 fn unknown_lexer(_: &mut Stream<'_>) -> State {
@@ -139,14 +139,8 @@ fn symbol_lexer(stream: &mut Stream<'_>) -> State {
     };
 
     let s = ::std::str::from_utf8(&s).expect("valid utf-8");
-    let sym = token::Symbol::new(s);
-    if sym.is_some() {
-        return State::Produce(s.len() - 1, Token::Symbol(sym.unwrap()));
-    }
-
-    let res = token::Reserved::new(s);
-    if res.is_some() {
-        return State::Produce(s.len() - 1, Token::Reserved(res.unwrap()));
+    if let Some(sym) = token::TokenType::try_parse(s) {
+        return State::Produce(s.len() - 1, sym);
     }
 
     State::Yield
@@ -160,7 +154,7 @@ fn identifier_lexer(stream: &mut Stream<'_>) -> State {
         return State::Yield;
     }
 
-    State::Produce(input.len() - 1, Token::Identifier(input))
+    State::Produce(input.len() - 1, TokenType::Identifier(input))
 }
 
 fn number_lexer(stream: &mut Stream<'_>) -> State {
@@ -202,11 +196,11 @@ fn number_lexer(stream: &mut Stream<'_>) -> State {
     }
 
     if let Ok(n) = i64::from_str(&s) {
-        return State::Produce(s.len() - 1, Token::Number(n));
+        return State::Produce(s.len() - 1, TokenType::Integer(n));
     }
 
     if let Ok(n) = f64::from_str(&s) {
-        return State::Produce(s.len() - 1, Token::Real(n));
+        return State::Produce(s.len() - 1, TokenType::Real(n));
     }
 
     State::Error(Error::InvalidDigits)
@@ -222,7 +216,7 @@ fn string_lexer(stream: &mut Stream<'_>) -> State {
         .skip(1)
         .take_while(|&c| (c as u8) != b'\'')
         .collect::<String>();
-    State::Produce(input.len() + 1, Token::String(input))
+    State::Produce(input.len() + 1, TokenType::String(input))
 }
 
 fn comment_lexer(stream: &mut Stream<'_>) -> State {
@@ -238,7 +232,7 @@ fn comment_lexer(stream: &mut Stream<'_>) -> State {
     };
 
     if next == '}' {
-        return State::Produce(2, Token::Comment(0, 2));
+        return State::Produce(2, TokenType::Comment(0, 2));
     }
 
     if next == '*' && c == '(' {
@@ -253,7 +247,7 @@ fn comment_lexer(stream: &mut Stream<'_>) -> State {
             }
             skip += 1;
         }
-        return State::Produce(skip, Token::Comment(0, skip));
+        return State::Produce(skip, TokenType::Comment(0, skip));
     }
 
     if c == '{' {
@@ -264,7 +258,7 @@ fn comment_lexer(stream: &mut Stream<'_>) -> State {
                 break;
             }
         }
-        return State::Produce(skip, Token::Comment(0, skip));
+        return State::Produce(skip, TokenType::Comment(0, skip));
     }
 
     State::Yield
@@ -293,7 +287,7 @@ fn type_lexer(stream: &mut Stream<'_>) -> State {
     let skip = name.len() - 1;
     for ty in TYPES {
         if ty.0 == name {
-            return State::Produce(skip, Token::Type(ty.1));
+            return State::Produce(skip, TokenType::TypeName(ty.1));
         }
     }
 

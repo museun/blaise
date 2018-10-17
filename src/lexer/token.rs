@@ -1,70 +1,33 @@
 use crate::count_digits;
+use crate::lexer::span::Span;
+
 use std::fmt;
+use std::ops::Deref;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Token {
-    Symbol(Symbol),
-    Reserved(Reserved),
-
-    Identifier(String),
-
-    Number(i64),
-    Real(f64),
-
-    String(String),
-
-    Type(Type),
-
-    Comment(usize, usize), // start, end
-
-    Label(String),
-    Directive,
-    Unknown,
-    EOF,
+pub struct Token {
+    ty: TokenType,
+    span: Span,
 }
 
 impl Token {
-    pub(crate) fn try_parse(s: impl AsRef<str>) -> Option<Self> {
-        let s = s.as_ref();
-        if s.len() <= 2 {
-            if let Some(s) = Symbol::new(s) {
-                return Some(Token::Symbol(s));
-            }
-        }
-        if let Some(s) = Reserved::new(s) {
-            return Some(Token::Reserved(s));
-        }
-        None
+    pub(crate) fn new(span: Span, ty: TokenType) -> Self {
+        Self { span, ty }
+    }
+
+    pub fn span(&self) -> Span {
+        self.span
+    }
+
+    pub fn token(&self) -> TokenType {
+        self.ty.clone()
     }
 }
 
-/// This panics if its not a valid Symbol or Reserve
-impl<'a> From<&'a str> for Token {
-    fn from(s: &'a str) -> Self {
-        let msg = || format!("can't turn '{}' into a Token", s);
-        Token::try_parse(s).unwrap_or_else(|| panic!(msg()))
-    }
-}
-
-impl Token {
-    pub(crate) fn width(&self) -> usize {
-        use self::Token::*;
-        match self {
-            Reserved(s) => format!("{}", s).len(),
-            Symbol(s) => format!("{}", s).len(),
-            Type(ty) => format!("{:?}", ty).len(),
-
-            Identifier(id) => id.len(),
-
-            Number(n) => count_digits(*n as usize),
-            Real(n) => format!("{}", n).len(), // can't do this quickly
-
-            String(s) => s.len() + 2, // for ''
-            Label(s) => s.len(),
-
-            Comment(start, end) => 1 + count_digits(*start) + count_digits(*end), // for the comma
-            _ => 0,
-        }
+impl Deref for Token {
+    type Target = TokenType;
+    fn deref(&self) -> &Self::Target {
+        &self.ty
     }
 }
 
@@ -74,11 +37,45 @@ pub enum Type {
     String,
     Boolean,
     Real,
-    //Unit
+    Unit,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum Reserved {
+#[derive(Debug, Clone, PartialEq)]
+pub enum TokenType {
+    Identifier(String),
+    Integer(i64),
+    Real(f64),
+    String(String),
+    TypeName(Type),
+    LabelName(String),
+
+    Comment(usize, usize), // start, end
+    Directive,
+    Unknown,
+    EOF,
+
+    Plus,
+    Minus,
+    Mul,
+    IntDiv,
+    Equal,
+    LessThan,
+    GreaterThan,
+    OpenBracket,
+    CloseBracket,
+    Period,
+    Comma,
+    Colon,
+    SemiColon,
+    UpArrow,
+    OpenParen,
+    CloseParen,
+    NotEqual,
+    LessThanEqual,
+    GreaterThanEqual,
+    Assign,
+    SubRange,
+
     And,
     Array,
     Begin,
@@ -115,21 +112,44 @@ pub enum Reserved {
     While,
     With,
 
-    // not in the spec but used in the spec.
     True,
     False,
 }
 
-impl Reserved {
-    pub fn new(s: &str) -> Option<Self> {
-        use self::Reserved::*;
+impl TokenType {
+    pub(crate) fn try_parse(s: impl AsRef<str>) -> Option<Self> {
+        use self::TokenType::*;
+
+        let s = s.as_ref();
         let res = match s.to_ascii_lowercase().as_str() {
+            "+" => Plus,
+            "-" => Minus,
+            "*" => Mul,
+            "/" => Div,
+            "=" => Equal,
+            "<" => LessThan,
+            ">" => GreaterThan,
+            "[" => OpenBracket,
+            "]" => CloseBracket,
+            "." => Period,
+            "," => Comma,
+            ":" => Colon,
+            ";" => SemiColon,
+            "^" => UpArrow,
+            "(" => OpenParen,
+            ")" => CloseParen,
+            "<>" => NotEqual,
+            "<=" => LessThanEqual,
+            ">=" => GreaterThanEqual,
+            ":=" => Assign,
+            ".." => SubRange,
+
             "and" => And,
             "array" => Array,
             "begin" => Begin,
             "case" => Case,
             "const" => Const,
-            "div" => Div,
+            "div" => IntDiv,
             "do" => Do,
             "downto" => Downto,
             "else" => Else,
@@ -164,74 +184,19 @@ impl Reserved {
             "false" => False,
             _ => return None,
         };
+
         Some(res)
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum Symbol {
-    Plus,
-    Minus,
-    Mul,
-    Div,
-    Equal,
-    LessThan,
-    GreaterThan,
-    OpenBracket,
-    CloseBracket,
-    Period,
-    Comma,
-    Colon,
-    SemiColon,
-    UpArrow,
-    OpenParen,
-    CloseParen,
-    NotEqual,
-    LessThanEqual,
-    GreaterThanEqual,
-    Assign,
-    SubRange,
-}
-
-impl Symbol {
-    pub fn new(s: &str) -> Option<Self> {
-        use self::Symbol::*;
-        let res = match s {
-            "+" => Plus,
-            "-" => Minus,
-            "*" => Mul,
-            "/" => Div,
-            "=" => Equal,
-            "<" => LessThan,
-            ">" => GreaterThan,
-            "[" => OpenBracket,
-            "]" => CloseBracket,
-            "." => Period,
-            "," => Comma,
-            ":" => Colon,
-            ";" => SemiColon,
-            "^" => UpArrow,
-            "(" => OpenParen,
-            ")" => CloseParen,
-            "<>" => NotEqual,
-            "<=" => LessThanEqual,
-            ">=" => GreaterThanEqual,
-            ":=" => Assign,
-            ".." => SubRange,
-            _ => return None,
-        };
-        Some(res)
-    }
-}
-
-impl fmt::Display for Symbol {
+impl fmt::Display for TokenType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use self::Symbol::*;
+        use self::TokenType::*;
         let s = match self {
             Plus => "+",
             Minus => "-",
             Mul => "*",
-            Div => "/",
+            IntDiv => "/",
             Equal => "=",
             LessThan => "<",
             GreaterThan => ">",
@@ -249,13 +214,34 @@ impl fmt::Display for Symbol {
             GreaterThanEqual => ">=",
             Assign => ":=",
             SubRange => "..",
+            _ => return write!(f, "{}", format!("{:?}", self).to_ascii_lowercase()),
         };
+
         write!(f, "{}", s)
     }
 }
 
-impl fmt::Display for Reserved {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", format!("{:?}", self).to_ascii_lowercase())
+/// This panics if its not a valid Symbol or Reserve
+impl<'a> From<&'a str> for TokenType {
+    fn from(s: &'a str) -> Self {
+        let msg = || format!("can't turn '{}' into a TokenType", s);
+        TokenType::try_parse(s).unwrap_or_else(|| panic!(msg()))
+    }
+}
+
+impl TokenType {
+    pub(crate) fn width(&self) -> usize {
+        use self::TokenType::*;
+        match self {
+            Identifier(id) => id.len(),
+            Integer(n) => count_digits(*n as usize),
+            Real(n) => format!("{}", n).len(), // can't do this quickly
+            String(s) => s.len() + 2,          // for ''
+            TypeName(ty) => format!("{:?}", ty).len(),
+            LabelName(s) => s.len(),
+            Comment(start, end) => 1 + count_digits(*start) + count_digits(*end), // for the comma
+
+            s => format!("{}", s).len(),
+        }
     }
 }

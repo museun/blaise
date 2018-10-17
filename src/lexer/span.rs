@@ -1,21 +1,15 @@
 use crate::count_digits;
-
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Span {
-    file: String,
     row: usize,
     col: usize,
 }
 
 impl Span {
-    pub fn new(file: impl Into<String>, row: usize, col: usize) -> Self {
-        Self {
-            file: file.into(),
-            row,
-            col,
-        }
+    pub fn new(row: usize, col: usize) -> Self {
+        Self { row, col }
     }
 
     #[inline(always)]
@@ -30,12 +24,12 @@ impl Span {
 
     pub fn total_width(&self) -> usize {
         // 2 for the colons
-        2 + self.file.len() + count_digits(self.row) + count_digits(self.col)
+        1 + count_digits(self.row) + count_digits(self.col)
     }
 }
 
 impl fmt::Display for Span {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}:{}", self.file, self.row, self.col)
+        write!(f, "{}:{}", self.row, self.col)
     }
 }

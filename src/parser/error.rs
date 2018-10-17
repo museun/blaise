@@ -1,14 +1,15 @@
 use crate::prelude::*;
 use std::fmt;
 
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Error {
     pub(crate) kind: ErrorKind,
     pub(crate) span: Span,
     pub(crate) source: String,
+    pub(crate) file: String,
 }
 
-impl fmt::Debug for Error {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let line = self.source.lines().nth(self.span.row() - 1).unwrap();
         let (data, adjusted) = midpoint(line, self.span.column() - 1, 80);
@@ -19,11 +20,17 @@ impl fmt::Debug for Error {
 }
 
 impl Error {
-    pub fn new(kind: impl Into<ErrorKind>, span: Span, src: impl Into<String>) -> Self {
+    pub fn new(
+        kind: impl Into<ErrorKind>,
+        span: Span,
+        src: impl Into<String>,
+        file: impl Into<String>,
+    ) -> Self {
         Self {
             kind: kind.into(),
             span,
             source: src.into(),
+            file: file.into(),
         }
     }
 
@@ -39,19 +46,19 @@ impl Error {
 #[derive(Debug, PartialEq)]
 pub enum ErrorKind {
     Unknown(String),
-    Expected(Token),
-    Unexpected(Token),
+    Expected(TokenType),
+    Unexpected(TokenType),
 }
 
-impl From<Token> for ErrorKind {
-    fn from(token: Token) -> Self {
+impl From<TokenType> for ErrorKind {
+    fn from(token: TokenType) -> Self {
         ErrorKind::Expected(token)
     }
 }
 
 impl<'a> From<&'a str> for ErrorKind {
     fn from(s: &'a str) -> Self {
-        if let Some(t) = Token::try_parse(s) {
+        if let Some(t) = TokenType::try_parse(s) {
             return t.into();
         }
         ErrorKind::Unknown(s.into())

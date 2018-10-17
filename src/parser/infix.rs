@@ -36,19 +36,10 @@ impl InfixParser {
     }
 
     fn binary_op(&self, parser: &mut Parser, expr: Expression) -> Result<BinaryExpression> {
-        let t = parser.tokens.current();
-        let op = match t {
-            Token::Symbol(s) => s
-                .as_binary_op()
-                .ok_or_else(|| parser.unexpected::<(), _>(t).unwrap_err())?,
-
-            Token::Reserved(s) => s
-                .as_binary_op()
-                .ok_or_else(|| parser.unexpected::<(), _>(t).unwrap_err())?,
-
-            t => parser.unexpected(t)?,
-        };
-
+        let t = parser.current()?;
+        let op = t
+            .as_binary_op()
+            .ok_or_else(|| parser.unexpected::<(), _>(t).unwrap_err())?;
         let p = self.precedence();
         Ok(BinaryExpression(expr, op, parser.expression(Some(p))?))
     }

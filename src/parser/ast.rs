@@ -124,8 +124,8 @@ pub enum BinaryOperator {
     Plus,
     Minus,
     Mul,
+    IntDiv,
     Div,
-    RealDiv,
 
     // bool
     And,
@@ -180,6 +180,7 @@ impl From<token::Type> for Type {
             token::Type::String => Type::String,
             token::Type::Boolean => Type::Boolean,
             token::Type::Real => Type::Real,
+            _ => panic!("unit type isn't a real type"),
         }
     }
 }
