@@ -7,11 +7,11 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn new(tokens: Tokens, source: String, filename: String) -> Self {
+    pub fn new(tokens: Tokens, source: impl Into<String>, filename: impl Into<String>) -> Self {
         Self {
             tokens,
-            source,
-            filename,
+            source: source.into(),
+            filename: filename.into(),
         }
     }
 
