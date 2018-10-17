@@ -82,7 +82,15 @@ fn main() {
         );
     }
 
-    eprintln!("{}", wrap_color!(Color::BrightYellow {}, "Result=>"));
-    let mut interpreter = Interpreter::new();
-    interpreter.evaluate(program);
+    eprintln!();
+    eprintln!("{}", wrap_color!(Color::BrightYellow {}, "Evaluation=>"));
+    let interpreter = Interpreter::new();
+    match interpreter.evaluate(program) {
+        Ok(res) => eprintln!(
+            "\n{}\n{:?}",
+            wrap_color!(Color::BrightYellow {}, "Result=>"),
+            res
+        ),
+        Err(err) => die(&format!("{}", err)),
+    }
 }

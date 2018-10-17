@@ -23,18 +23,7 @@ impl Interpreter {
         Self::default()
     }
 
-    pub fn evaluate(&mut self, program: Program) {
-        match self.visit(program) {
-            Err(err) => {
-                error!("{:#?}", self.scope);
-                error!("{}", err);
-                ::std::process::exit(1)
-            }
-            Ok(object) => info!("result=> {:#?}", object),
-        }
-    }
-
-    fn visit(&mut self, node: Program) -> Result<Object> {
+    pub fn evaluate(mut self, node: Program) -> Result<Object> {
         let Program(Variable(name), block) = node;
         self.enter(name);
         self.init()?;
