@@ -110,7 +110,7 @@ fn whitespace_lexer(stream: &mut Stream<'_>) -> State {
 fn symbol_lexer(stream: &mut Stream<'_>) -> State {
     fn is_symbol(c: char) -> bool {
         match c as u8 {
-            b'\''...b'/' | b':'...b'>' | b'@' | b'['...b'^' | b'{'...b'}' => true,
+            b'\''..=b'/' | b':'..=b'>' | b'@' | b'['..=b'^' | b'{'..=b'}' => true,
             _ => false,
         }
     }

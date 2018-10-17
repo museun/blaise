@@ -142,7 +142,7 @@ pub enum BinaryOperator {
 
 use std::fmt;
 impl fmt::Display for BinaryOperator {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
