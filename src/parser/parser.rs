@@ -43,13 +43,13 @@ impl Parser {
 
     fn block(&mut self) -> Result<Block> {
         let decls = self.declarations()?;
-        debug!("decls: {:#?}", decls);
         let compound = self.compound_statement()?;
+
         Ok(Block(decls, compound))
     }
 
     fn declarations(&mut self) -> Result<Vec<Declaration>> {
-        let (mut decls, mut vars) = (vec![], vec![]);
+        let mut vars = vec![];
         if let TokenType::Var = self.current()? {
             self.advance();
             while let TokenType::Identifier(_) = self.current()? {
@@ -75,14 +75,11 @@ impl Parser {
                         self.advance();
                     }
                 }
-
-                t => {
-                    trace!("decl other: current: {:?}", t);
-                    break;
-                }
+                _ => break,
             };
         }
 
+        let mut decls = vec![];
         decls.push(Declaration::Variable(vars));
         decls.push(Declaration::Procedure(procs));
         decls.push(Declaration::Function(funcs));
@@ -91,14 +88,15 @@ impl Parser {
     }
 
     fn variable_declaration(&mut self) -> Result<VariableDeclaration> {
-        // var a,b,c,d : integer;
         let mut idents = vec![self.identifier()?];
         while self.consume(",") {
             idents.push(self.identifier()?);
         }
         self.expect(":")?;
+
         let ty = self.ty()?;
         self.expect(";")?;
+
         Ok(VariableDeclaration(idents, ty))
     }
 
@@ -118,6 +116,7 @@ impl Parser {
 
         self.expect(";")?;
         let block = self.block()?;
+
         Ok(ProcedureDeclaration(name, params, block))
     }
 
@@ -137,8 +136,10 @@ impl Parser {
 
         self.expect(":")?;
         let ty = self.ty()?;
+
         self.expect(";")?;
         let block = self.block()?;
+
         Ok(FunctionDeclaration(name, params, block, ty))
     }
 
@@ -160,6 +161,7 @@ impl Parser {
             idents.push(self.identifier()?);
         }
         self.expect(":")?;
+
         Ok(FormalParameter(idents, self.ty()?))
     }
 
@@ -180,6 +182,7 @@ impl Parser {
         if statements.is_empty() {
             statements.push(Statement::default())
         }
+
         Ok(Compound(statements))
     }
 
@@ -198,14 +201,17 @@ impl Parser {
             t => panic!("{:?}", t),
         };
         trace!("stmt cur: {:?}", self.current()?);
+
         Ok(res)
     }
 
     fn function_call(&mut self) -> Result<FunctionCall> {
         let var = self.variable()?;
+
         self.expect("(")?;
         let params = self.call_params()?;
         self.expect(")")?;
+
         Ok(FunctionCall(var, params))
     }
 
@@ -213,6 +219,7 @@ impl Parser {
         let var = self.variable()?;
         self.expect(":=")?;
         let expr = self.expression(None)?;
+
         Ok(Assignment(var, expr))
     }
 
@@ -282,10 +289,12 @@ impl Parser {
         if let TokenType::CloseParen = self.current()? {
             return Ok(CallParams::default());
         }
+
         let mut params = vec![self.expression(None)?];
         while self.consume(",") {
             params.push(self.expression(None)?)
         }
+
         Ok(CallParams(params))
     }
 
@@ -293,6 +302,7 @@ impl Parser {
         if let TokenType::OpenParen = self.current()? {
             self.advance();
             let expr = self.expression(None)?;
+
             return match self.current()? {
                 TokenType::CloseParen => {
                     self.advance();
@@ -301,6 +311,7 @@ impl Parser {
                 t => panic!("{:?}", t),
             };
         };
+
         panic!("{:?}", self.current()?)
     }
 
@@ -327,7 +338,7 @@ impl Parser {
             let token = self.current()?;
             lhs = self.infix(&token, lhs)?;
         }
-        trace!("e expr, lhs: {:?}, cur: {:?}", lhs, self.current()?);
+
         Ok(lhs)
     }
 
@@ -346,6 +357,7 @@ impl Parser {
             Identifier(_) => Expression::Variable(self.variable()?),
             t => panic!("{:?}", t),
         };
+
         Ok(ok)
     }
 
@@ -378,20 +390,21 @@ impl Parser {
             OpenParen => Expression::FunctionCall(self.function_call_expr(lhs)?),
             t => panic!("{:?}", t),
         };
+
         Ok(ok)
     }
 
     fn unary_op(&mut self, p: Precedence) -> Result<UnaryExpression> {
-        let tok = self.current()?;
-        let op = tok.as_unary_op().unwrap();
+        let op = self.current()?.as_unary_op().unwrap();
         self.advance();
+
         Ok(UnaryExpression(op, self.expression(Some(p))?))
     }
 
     fn binary_op(&mut self, lhs: Expression, p: Precedence) -> Result<BinaryExpression> {
-        let tok = self.current()?;
-        let op = tok.as_binary_op().unwrap();
+        let op = self.current()?.as_binary_op().unwrap();
         self.advance();
+
         Ok(BinaryExpression(lhs, op, self.expression(Some(p))?))
     }
 
@@ -407,6 +420,7 @@ impl Parser {
         } else {
             CallParams::default()
         };
+
         Ok(FunctionCall(name.clone(), params))
     }
 
@@ -420,11 +434,13 @@ impl Parser {
             t => panic!("{:?}", t),
         };
         self.advance();
+
         Ok(res)
     }
 
     fn variable(&mut self) -> Result<Variable> {
         let name = self.identifier()?;
+
         Ok(Variable(name.clone()))
     }
 
@@ -432,6 +448,7 @@ impl Parser {
         if let TokenType::TypeName(ty) = self.expect(TokenType::TypeName(token::Type::Unit))? {
             return Ok(ty.into());
         }
+
         panic!("{:?}", self.current()?)
     }
 
@@ -439,6 +456,7 @@ impl Parser {
         if let TokenType::Identifier(id) = self.expect(TokenType::Identifier("".into()))? {
             return Ok(id.clone());
         }
+
         panic!("{:?}", self.current()?)
     }
 
