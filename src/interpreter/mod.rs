@@ -38,12 +38,12 @@ impl Interpreter {
         let Program(Variable(name), block) = node;
         self.enter(name);
         self.init()?;
-        let result = self.visit_block(block)?;
+        let result = self.visit_block(&block)?;
         self.leave();
         Ok(result)
     }
 
-    fn visit_block(&mut self, node: Block) -> Result<Object> {
+    fn visit_block(&mut self, node: &Block) -> Result<Object> {
         let Block(decls, comp) = node;
         self.visit_declarations(&decls)?;
         self.visit_compound(comp)
@@ -54,12 +54,12 @@ impl Interpreter {
             match decl {
                 Declaration::Procedure(list) => {
                     for proc in list {
-                        self.visit_procedure_declaration(proc.clone())?;
+                        self.visit_procedure_declaration(proc)?;
                     }
                 }
                 Declaration::Function(list) => {
                     for func in list {
-                        self.visit_function_declaration(func.clone())?;
+                        self.visit_function_declaration(func)?;
                     }
                 }
                 _ => {}
@@ -68,23 +68,27 @@ impl Interpreter {
         Ok(())
     }
 
-    fn visit_procedure_declaration(&mut self, node: ProcedureDeclaration) -> Result<()> {
+    fn visit_procedure_declaration(&mut self, node: &ProcedureDeclaration) -> Result<()> {
         let ProcedureDeclaration(name, list, block) = node;
         let params = self.visit_formal_parameter_list(list)?;
-        self.scope()?
-            .set(name.clone(), Object::Procedure(name, params, block));
+        self.scope()?.set(
+            name.clone(),
+            Object::Procedure(name.clone(), params, block.clone()),
+        );
         Ok(())
     }
 
-    fn visit_function_declaration(&mut self, node: FunctionDeclaration) -> Result<()> {
+    fn visit_function_declaration(&mut self, node: &FunctionDeclaration) -> Result<()> {
         let FunctionDeclaration(name, list, block, ty) = node;
         let params = self.visit_formal_parameter_list(list)?;
-        self.scope()?
-            .set(name.clone(), Object::Function(name, params, block, ty));
+        self.scope()?.set(
+            name.clone(),
+            Object::Function(name.clone(), params, block.clone(), ty.clone()),
+        );
         Ok(())
     }
 
-    fn visit_formal_parameter_list(&mut self, node: FormalParameterList) -> Result<Vec<String>> {
+    fn visit_formal_parameter_list(&mut self, node: &FormalParameterList) -> Result<Vec<String>> {
         let FormalParameterList(list) = node;
         let mut names = vec![];
         for param in list {
@@ -94,12 +98,13 @@ impl Interpreter {
         Ok(names)
     }
 
-    fn visit_formal_parameter(&mut self, node: FormalParameter) -> Result<Vec<String>> {
+    fn visit_formal_parameter<'a>(&mut self, node: &'a FormalParameter) -> Result<Vec<String>> {
         let FormalParameter(names, _) = node;
-        Ok(names)
+        // TODO this
+        Ok(names.to_vec())
     }
 
-    fn visit_compound(&mut self, node: Compound) -> Result<Object> {
+    fn visit_compound(&mut self, node: &Compound) -> Result<Object> {
         let Compound(list) = node;
         let mut obj = Object::Unit;
         for statement in list {
@@ -108,35 +113,35 @@ impl Interpreter {
         Ok(obj)
     }
 
-    fn visit_statement(&mut self, node: Statement) -> Result<Object> {
+    fn visit_statement(&mut self, node: &Statement) -> Result<Object> {
         match node {
             Statement::Compound(comp) => self.visit_compound(comp),
             Statement::Assignment(assign) => self.visit_assignment(assign),
             Statement::FunctionCall(call) => self.visit_function_call(call),
-            Statement::IfStatement(stmt) => self.visit_if_statement(*stmt),
+            Statement::IfStatement(stmt) => self.visit_if_statement(stmt),
             Statement::Repetitive(stmt) => self.visit_repetitive(stmt),
             Statement::Empty => Ok(Object::Unit),
         }
     }
 
-    fn visit_function_call(&mut self, node: FunctionCall) -> Result<Object> {
+    fn visit_function_call(&mut self, node: &FunctionCall) -> Result<Object> {
         let FunctionCall(Variable(func), CallParams(params)) = node;
-        match self.scope()?.get(func.clone()).cloned() {
+        match self.scope()?.get(func).cloned() {
             Some(Object::Function(name, args, block, _))
             | Some(Object::Procedure(name, args, block)) => {
-                self.enter(name.clone());
+                self.enter(name);
                 for (a, p) in args.iter().zip(params.iter()) {
-                    let p = self.visit_expression(p.clone())?;
+                    let p = self.visit_expression(p)?;
                     self.scope()?.set(a.to_string(), p);
                 }
-                let result = self.visit_block(block)?;
+                let result = self.visit_block(&block)?;
                 self.leave();
                 Ok(result)
             }
 
             Some(Object::Builtin(Builtin::Write(f)))
             | Some(Object::Builtin(Builtin::WriteLn(f))) => {
-                match self.visit_expression(params[0].clone())? {
+                match self.visit_expression(&params[0])? {
                     o @ Object::Primitive(Primitive::Integer(_))
                     | o @ Object::Primitive(Primitive::String(_))
                     | o @ Object::Primitive(Primitive::Boolean(_))
@@ -154,7 +159,7 @@ impl Interpreter {
         }
     }
 
-    fn visit_if_statement(&mut self, node: IfStatement) -> Result<Object> {
+    fn visit_if_statement(&mut self, node: &IfStatement) -> Result<Object> {
         match node {
             IfStatement::If(expr, stmt) => match self.visit_expression(expr)? {
                 Object::Primitive(Primitive::Boolean(true)) => {
@@ -183,7 +188,7 @@ impl Interpreter {
                     Ok(Object::Unit)
                 }
                 Object::Primitive(Primitive::Boolean(false)) => {
-                    self.visit_if_statement(*else_)?;
+                    self.visit_if_statement(&*else_)?;
                     Ok(Object::Unit)
                 }
                 e => unimplemented!("{:#?}", e),
@@ -193,7 +198,7 @@ impl Interpreter {
 
     fn get_bool_expr(&mut self, expr: Expression) -> Result<bool> {
         match expr {
-            Expression::Boolean(expr) => match self.visit_binary_op(*expr.clone())? {
+            Expression::Boolean(expr) => match self.visit_binary_op(&*expr)? {
                 Object::Primitive(Primitive::Boolean(b)) => Ok(b),
                 e => panic!("invalid expr, requires boolean got: {:?}", e),
             },
@@ -201,7 +206,7 @@ impl Interpreter {
         }
     }
 
-    fn visit_repetitive(&mut self, node: Repetitive) -> Result<Object> {
+    fn visit_repetitive(&mut self, node: &Repetitive) -> Result<Object> {
         match &node {
             Repetitive::Repeat(statements, expr) => self.visit_repeat(statements, expr),
             Repetitive::While(expr, compound) => self.visit_while(expr, compound),
@@ -215,7 +220,7 @@ impl Interpreter {
         let _ = self.get_bool_expr(expr.clone())?;
         loop {
             for stmt in statements {
-                let _res = self.visit_statement(stmt.clone())?;
+                let _res = self.visit_statement(stmt)?;
             }
             if self.get_bool_expr(expr.clone())? {
                 return Ok(Object::Unit);
@@ -228,31 +233,25 @@ impl Interpreter {
             if !self.get_bool_expr(expr.clone())? {
                 return Ok(Object::Unit);
             }
-            let _res = self.visit_compound(compound.clone())?;
+            let _res = self.visit_compound(compound)?;
         }
     }
 
     // too much typing to pass the million params
     fn visit_for(&mut self, f: &Repetitive) -> Result<Object> {
         if let Repetitive::For(var, start, direction, end, compound) = f {
-            // for var := start _dir_ end do begin
-            //   _compound_
-            // end
-
             // TODO make sure types are equivilant
             // just to check
-            let var = self.visit_variable(var.clone())?;
-            let var = self.visit_expression(start.clone())?;
+            let var = self.visit_variable(var)?;
+            let var = self.visit_expression(start)?;
             if let Object::Primitive(Primitive::Integer(mut start)) = var {
-                if let Object::Primitive(Primitive::Integer(end)) =
-                    self.visit_expression(end.clone())?
-                {
+                if let Object::Primitive(Primitive::Integer(end)) = self.visit_expression(end)? {
                     while start != end {
                         match direction {
                             Direction::To => start += 1,
                             Direction::DownTo => start -= 1,
                         }
-                        let _res = self.visit_compound(compound.clone())?;
+                        let _res = self.visit_compound(compound)?;
                     }
                     return Ok(Object::Unit);
                 } else {
@@ -266,30 +265,31 @@ impl Interpreter {
         unreachable!("end of for")
     }
 
-    fn visit_assignment(&mut self, node: Assignment) -> Result<Object> {
+    fn visit_assignment(&mut self, node: &Assignment) -> Result<Object> {
         let Assignment(Variable(name), expr) = node;
         let val = self.visit_expression(expr)?;
-        self.scope()?.set(name, val.clone());
+        self.scope()?.set(name.clone(), val.clone());
         Ok(val)
     }
 
-    fn visit_expression(&mut self, node: Expression) -> Result<Object> {
+    fn visit_expression(&mut self, node: &Expression) -> Result<Object> {
         match node {
-            Expression::Unary(expr) => self.visit_unary_op(*expr),
-            Expression::Binary(expr) | Expression::Boolean(expr) => self.visit_binary_op(*expr),
-            Expression::Literal(expr) => self.visit_literal(expr),
+            Expression::Unary(expr) => self.visit_unary_op(expr),
+            Expression::Binary(expr) | Expression::Boolean(expr) => self.visit_binary_op(expr),
+            Expression::Literal(expr) => self.visit_literal(expr.clone()),
             Expression::Variable(expr) => self.visit_variable(expr),
             Expression::FunctionCall(call) => self.visit_function_call(call),
-            Expression::Group(expr) => self.visit_group(*expr),
+            Expression::Group(expr) => self.visit_group(expr),
         }
     }
 
-    fn visit_group(&mut self, node: GroupExpression) -> Result<Object> {
+    fn visit_group(&mut self, node: &GroupExpression) -> Result<Object> {
         let GroupExpression(expr) = node;
+        // TODO this
         self.visit_expression(expr)
     }
 
-    fn visit_unary_op(&mut self, node: UnaryExpression) -> Result<Object> {
+    fn visit_unary_op(&mut self, node: &UnaryExpression) -> Result<Object> {
         match node {
             UnaryExpression(UnaryOperator::Plus, expr) => self.visit_expression(expr)?.unary_plus(),
             UnaryExpression(UnaryOperator::Minus, expr) => {
@@ -299,7 +299,7 @@ impl Interpreter {
         }
     }
 
-    fn visit_binary_op(&mut self, node: BinaryExpression) -> Result<Object> {
+    fn visit_binary_op(&mut self, node: &BinaryExpression) -> Result<Object> {
         use crate::prelude::ast::{BinaryExpression as Ex, BinaryOperator as Op};
         let mut visit = |e| self.visit_expression(e);
         match node {
@@ -328,12 +328,12 @@ impl Interpreter {
         })
     }
 
-    fn visit_variable(&mut self, node: Variable) -> Result<Object> {
+    fn visit_variable(&mut self, node: &Variable) -> Result<Object> {
         let Variable(name) = node;
         self.scope()?
             .get(&name)
             .cloned()
-            .ok_or_else(|| Error::UnknownVariable(name))
+            .ok_or_else(|| Error::UnknownVariable(name.clone()))
     }
 
     fn init(&mut self) -> Result<()> {
