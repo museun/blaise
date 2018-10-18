@@ -41,7 +41,9 @@ impl Error {
         w.wrap(Color::Red, draw_caret(adjusted));
         writeln!(w);
 
-        write!(w, "{}:{} ", self.file, self.span);
+        w.wrap(Color::Magenta, &self.file);
+        write!(w, ":");
+        w.wrap(Color::Cyan, &format!("{} ", self.span));
 
         match self.kind() {
             ErrorKind::Unknown(reason) => {
