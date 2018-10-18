@@ -60,7 +60,11 @@ impl Interpreter {
                 }
             }
         }
-        debug!("{:#?}", self.scope);
+
+        if let Some(ref scope) = self.scope {
+            scope.dump(&mut ::std::io::stdout()).expect("dump");
+        }
+
         Ok(())
     }
 
@@ -168,7 +172,6 @@ impl Interpreter {
 
                 for param in params {
                     let obj = self.visit_expression(param)?;
-                    debug!("obj expr: {:?}", obj);
                     args.extend(visit_args(obj))
                 }
                 f(&args)

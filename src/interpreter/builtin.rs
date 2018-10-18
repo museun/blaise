@@ -32,6 +32,7 @@ pub(crate) fn writeln(objects: &[Object]) -> Result<Object> {
     Ok(Object::Unit)
 }
 
+// doesn't support reals
 pub(crate) fn read(objects: &[Object]) -> Result<Vec<(&String, Object)>> {
     // we won't work on strings (but it will)
     let mut out = vec![];
@@ -45,7 +46,6 @@ pub(crate) fn read(objects: &[Object]) -> Result<Vec<(&String, Object)>> {
     }
 
     let mut data = stdin().bytes();
-
     for object in objects {
         let mut buf = vec![];
         let (name, ty) = match object {
@@ -61,12 +61,13 @@ pub(crate) fn read(objects: &[Object]) -> Result<Vec<(&String, Object)>> {
                 Err(_e) => continue,
             };
 
+            let s = s.trim();
             out.push((
                 name,
                 match ty {
                     Type::String => parse!(s.parse::<String>()),
+                    Type::Real => panic!("floats aren't supported"),
                     Type::Integer => parse!(s.parse::<i64>()),
-                    Type::Real => parse!(s.parse::<f64>()),
                     Type::Boolean => parse!(s.parse::<bool>()),
                     e => unimplemented!("{:#?}", e),
                 },
@@ -107,7 +108,6 @@ pub(crate) fn readln(objects: &[Object]) -> Result<Vec<(&String, Object)>> {
                 continue;
             }
 
-            debug!("object: {:?}", object);
             if let Object::Variable(name, ty, _) = object {
                 out.push((
                     name,
