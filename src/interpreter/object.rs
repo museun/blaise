@@ -1,4 +1,6 @@
+use crate::join_strings;
 use super::*;
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum Object {
@@ -10,11 +12,40 @@ pub enum Object {
     Builtin(Builtin),
 }
 
-#[derive(Debug, Clone)]
+impl fmt::Display for Object {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Object::Unit => write!(f, "Unit"),
+            Object::Primitive(p) => write!(f, "p: {}", p),
+            Object::Procedure(name, args, _block) => {
+                write!(f, "proc {}({})", name, join_strings(&args, ", "))
+            }
+            Object::Function(name, args, _block, ty) => {
+                write!(f, "fn {}({}) -> {:?}", name, join_strings(&args, ", "), ty)
+            }
+            Object::Variable(name, ty) => write!(f, "{} = {:?}", name, ty),
+            Object::Builtin(b) => write!(f, "{:?} : Builtin", b),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub enum Builtin {
-    Write(fn(Object) -> Result<Object>),
-    WriteLn(fn(Object) -> Result<Object>),
-    ReadLn(fn() -> Result<Object>),
+    Write(fn(&[Object]) -> Result<Object>),
+    WriteLn(fn(&[Object]) -> Result<Object>),
+    Read(fn(&[Object]) -> Result<Vec<(&String, Object)>>),
+    ReadLn(fn(&[Object]) -> Result<Vec<(&String, Object)>>),
+}
+
+impl fmt::Debug for Builtin {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Builtin::Write(_) => write!(f, "Write()"),
+            Builtin::WriteLn(_) => write!(f, "WriteLn()"),
+            Builtin::Read(_) => write!(f, "Read()"),
+            Builtin::ReadLn(_) => write!(f, "ReadLn()"),
+        }
+    }
 }
 
 impl Object {

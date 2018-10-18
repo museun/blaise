@@ -111,6 +111,10 @@ impl Parser {
                         self.advance();
                     }
                 }
+                t @ TokenType::Var => {
+                    self.advance();
+                    self.unexpected(t)?;
+                }
                 _ => break,
             };
         }
@@ -241,7 +245,9 @@ impl Parser {
         let res = match self.current()? {
             TokenType::Begin => Compound(self.compound_statement()?),
             TokenType::Identifier(_) => match self.peek() {
-                Some(TokenType::OpenParen) => FunctionCall(self.function_call()?),
+                Some(TokenType::OpenParen) | Some(TokenType::SemiColon) => {
+                    FunctionCall(self.function_call()?)
+                }
                 Some(TokenType::Assign) => Assignment(self.assignment_statement()?),
                 _ => self.expected(&[TokenType::OpenParen, TokenType::Assign])?,
             },
@@ -251,6 +257,7 @@ impl Parser {
             t => self.unexpected(t)?,
         };
 
+        trace!("statement: {:#?}", res);
         Ok(res)
     }
 
@@ -258,11 +265,12 @@ impl Parser {
         traced!(self, "function_call");
         let var = self.variable()?;
 
-        self.expect("(")?;
+        if !self.consume("(") {
+            return Ok(FunctionCall(var, CallParams::default()));
+        }
+
         let params = self.call_params()?;
         self.expect(")")?;
-
-        trace!("var: {:?} | params: {:?}", var, params);
 
         Ok(FunctionCall(var, params))
     }

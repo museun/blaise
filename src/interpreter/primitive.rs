@@ -1,14 +1,25 @@
 use self::Primitive::*;
 use super::*;
 
-use std::string::String as RString;
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum Primitive {
     Integer(i64),
-    String(RString),
+    Str(String),
     Boolean(bool),
     Real(f64),
+}
+
+impl fmt::Display for Primitive {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Primitive::Integer(n) => write!(f, "{} : Integer", n),
+            Primitive::Str(n) => write!(f, "{} : String", n),
+            Primitive::Boolean(n) => write!(f, "{} : Boolean", n),
+            Primitive::Real(n) => write!(f, "{} : Real", n),
+        }
+    }
 }
 
 impl From<i64> for Object {
@@ -23,9 +34,9 @@ impl From<f64> for Object {
     }
 }
 
-impl From<RString> for Object {
-    fn from(s: RString) -> Self {
-        Object::Primitive(Primitive::String(s))
+impl From<String> for Object {
+    fn from(s: String) -> Self {
+        Object::Primitive(Primitive::Str(s))
     }
 }
 
@@ -47,9 +58,9 @@ impl From<f64> for Primitive {
     }
 }
 
-impl From<RString> for Primitive {
-    fn from(s: RString) -> Self {
-        Primitive::String(s)
+impl From<String> for Primitive {
+    fn from(s: String) -> Self {
+        Primitive::Str(s)
     }
 }
 
@@ -97,7 +108,7 @@ impl Primitive {
             (Integer(left), Real(right)) => ((*left as f64) + (*right as f64)).into(),
             (Real(left), Integer(right)) => ((*left as f64) + (*right as f64)).into(),
 
-            (String(left), String(right)) => format!("{}{}", left, right).into(),
+            (Str(left), Str(right)) => format!("{}{}", left, right).into(),
             (left, right) => Self::error(left, Some(right), OperatorError::Add)?,
         };
         Ok(res)

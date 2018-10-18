@@ -25,6 +25,11 @@ impl Interpreter {
         this.enter(name);
         this.init()?;
         let result = this.visit_block(&block)?;
+
+        if let Some(ref scope) = this.scope {
+            scope.dump(&mut ::std::io::stdout()).expect("dump");
+        }
+
         this.leave();
         Ok(result)
     }
@@ -126,6 +131,8 @@ impl Interpreter {
 
     fn visit_function_call(&mut self, node: &FunctionCall) -> Result<Object> {
         let FunctionCall(Variable(func), CallParams(params)) = node;
+        // trace!("fn: {:#?} ({:#?}", func, params);
+
         match self.scope()?.get(func).cloned() {
             Some(Object::Function(name, args, block, _))
             | Some(Object::Procedure(name, args, block)) => {
@@ -141,20 +148,43 @@ impl Interpreter {
 
             Some(Object::Builtin(Builtin::Write(f)))
             | Some(Object::Builtin(Builtin::WriteLn(f))) => {
-                match self.visit_expression(&params[0])? {
-                    o @ Object::Primitive(Primitive::Integer(_))
-                    | o @ Object::Primitive(Primitive::String(_))
-                    | o @ Object::Primitive(Primitive::Boolean(_))
-                    | o @ Object::Primitive(Primitive::Real(_)) => f(o),
+                let mut args = vec![];
+                debug!("params {:#?}", params);
 
-                    o => {
-                        warn!("invalid argument: {:#?}", o);
-                        Err(Error::InvalidArgument)
+                for param in params {
+                    let obj = self.visit_expression(param)?;
+                    debug!("obj expr: {:?}", obj);
+                    match obj {
+                        Object::Primitive(Primitive::Integer(_))
+                        | Object::Primitive(Primitive::Str(_))
+                        | Object::Primitive(Primitive::Boolean(_))
+                        | Object::Primitive(Primitive::Real(_)) => args.push(obj),
+
+                        obj => {
+                            warn!("invalid argument: {:#?}", obj);
+                            return Err(Error::InvalidArgument);
+                        }
                     }
                 }
+                f(&args)
             }
 
-            Some(Object::Builtin(Builtin::ReadLn(f))) => f(),
+            Some(Object::Builtin(Builtin::ReadLn(f))) | Some(Object::Builtin(Builtin::Read(f))) => {
+                let mut objects = vec![];
+                for param in params {
+                    match self.visit_expression(&param)? {
+                        obj @ Object::Variable(_, _) => objects.push(obj),
+                        e => panic!("{:#?}", e),
+                    }
+                }
+
+                for (name, result) in f(&objects)? {
+                    // TODO check types
+                    self.scope()?.set(name.clone(), result);
+                }
+
+                Ok(Object::Unit)
+            }
             _ => Err(Error::UnknownFunction(func.to_string()))?,
         }
     }
@@ -343,6 +373,7 @@ impl Interpreter {
             "writeln",
             Object::Builtin(Builtin::WriteLn(builtin::writeln)),
         );
+        scope.set("read", Object::Builtin(Builtin::Read(builtin::read)));
         scope.set("readln", Object::Builtin(Builtin::ReadLn(builtin::readln)));
         Ok(())
     }

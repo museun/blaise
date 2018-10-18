@@ -38,3 +38,13 @@ pub(crate) fn count_digits(n: usize) -> usize {
     }
     x
 }
+
+pub(crate) fn join_strings(s: &[String], p: &str) -> String {
+    s.iter().fold(String::new(), |mut a, c| {
+        if !a.is_empty() {
+            a.push_str(p);
+        }
+        a.push_str(c);
+        a
+    })
+}
