@@ -231,7 +231,7 @@ impl Interpreter {
         if let Repetitive::For(var, start, direction, end, compound) = f {
             // TODO make sure types are equivilant
             // just to check
-            let var = self.visit_variable(var)?;
+            let _var = self.visit_variable(var)?;
             let var = self.visit_expression(start)?;
             if let Object::Primitive(Primitive::Integer(mut start)) = var {
                 if let Object::Primitive(Primitive::Integer(end)) = self.visit_expression(end)? {

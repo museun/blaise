@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use crate::*;
-use std::fmt;
+
+use std::io::prelude::*;
 
 #[derive(Debug, PartialEq)]
 pub struct Error {
@@ -8,26 +8,6 @@ pub struct Error {
     pub(crate) span: Span,
     pub(crate) source: String,
     pub(crate) file: String,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let line = self.source.lines().nth(self.span.row() - 1).unwrap();
-        let (data, adjusted) = midpoint(line, self.span.column() - 1, 80);
-        writeln!(f, "{}", data)?;
-        writeln!(
-            f,
-            "{}",
-            wrap_color!(Color::BrightRed {}, draw_caret(adjusted))
-        );
-        write!(
-            f,
-            "{}:{} {}",
-            wrap_color!(Color::Green {}, self.file),
-            wrap_color!(Color::BrightMagenta {}, self.span),
-            self.kind
-        )
-    }
 }
 
 impl Error {
@@ -52,6 +32,53 @@ impl Error {
     pub fn span(&self) -> &Span {
         &self.span
     }
+
+    pub fn print(&self, w: &mut Writer) {
+        let line = self.source.lines().nth(self.span.row() - 1).unwrap();
+        let (data, adjusted) = midpoint(line, self.span.column() - 1, 80);
+
+        writeln!(w, "{}", data);
+        w.wrap(Color::Red, draw_caret(adjusted));
+        writeln!(w);
+
+        write!(w, "{}:{} ", self.file, self.span);
+
+        match self.kind() {
+            ErrorKind::Unknown(reason) => {
+                w.wrap(Color::Yellow, "error message: ");
+                write!(w, "{}", reason);
+            }
+            ErrorKind::Expected(wanted, got) => {
+                if wanted.len() > 1 {
+                    w.wrap(Color::Yellow, "expected one of: ");
+                    w.wrap(
+                        Color::Green,
+                        wanted
+                            .iter()
+                            .map(|s| format!("{}", s))
+                            .fold(String::new(), |mut a, c| {
+                                if !a.is_empty() {
+                                    a.push_str(", ");
+                                }
+                                a.push_str(&c);
+                                a
+                            }),
+                    );
+                } else {
+                    w.wrap(Color::Yellow, "expected: ");
+                    w.wrap(Color::Green, &format!("{}", wanted[0]));
+                }
+                write!(w, " got ");
+                w.wrap(Color::Red, &format!("{}", got));
+            }
+            ErrorKind::Unexpected(token) => {
+                w.wrap(Color::Yellow, "unexpected: ");
+                w.wrap(Color::Red, &format!("{}", token));
+            }
+        }
+        writeln!(w);
+        w.flush().unwrap();
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -59,56 +86,6 @@ pub enum ErrorKind {
     Unknown(String),
     Expected(Vec<TokenType>, TokenType),
     Unexpected(TokenType),
-}
-
-impl fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ErrorKind::Unknown(reason) => write!(
-                f,
-                "{} {}",
-                wrap_color!(Color::Yellow {}, "error message:"),
-                reason
-            ),
-            ErrorKind::Expected(wanted, got) => {
-                if wanted.len() > 1 {
-                    write!(
-                        f,
-                        "{} {}, got {}",
-                        wrap_color!(Color::Yellow {}, "expected one of:"),
-                        wrap_color!(
-                            Color::Cyan {},
-                            wanted.iter().map(|s| format!("{}", s)).fold(
-                                String::new(),
-                                |mut a, c| {
-                                    if !a.is_empty() {
-                                        a.push_str(", ");
-                                    }
-                                    a.push_str(&c);
-                                    a
-                                }
-                            )
-                        ),
-                        wrap_color!(Color::Red {}, got)
-                    )
-                } else {
-                    write!(
-                        f,
-                        "{} {} got {}",
-                        wrap_color!(Color::Yellow {}, "expected:"),
-                        wrap_color!(Color::Cyan {}, wanted[0]),
-                        wrap_color!(Color::Red {}, got)
-                    )
-                }
-            }
-            ErrorKind::Unexpected(token) => write!(
-                f,
-                "{} {}",
-                wrap_color!(Color::Yellow {}, "unexpected:"),
-                wrap_color!(Color::Red {}, token)
-            ),
-        }
-    }
 }
 
 impl<'a> From<&'a str> for ErrorKind {

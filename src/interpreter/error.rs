@@ -1,5 +1,4 @@
 use super::*;
-use std::fmt;
 
 #[derive(Debug)]
 pub enum Error {
@@ -30,10 +29,4 @@ pub enum OperatorError {
     GreaterThanEqual,
     Equal,
     NotEqual,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
 }

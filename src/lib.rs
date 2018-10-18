@@ -1,10 +1,9 @@
-#![allow(dead_code, unused_variables, unused_imports)] // go away clippy
+//#![allow(dead_code, unused_variables, unused_imports)] // go away clippy
 #![feature(custom_attribute)]
 
 #[macro_use]
 extern crate log;
 
-#[macro_use]
 pub(crate) mod trace;
 
 #[macro_use]
@@ -22,7 +21,7 @@ pub mod prelude {
     pub use crate::lexer::*;
     pub use crate::parser::{ast, Parser};
 
-    pub use crate::colors::{Color, enable_colors};
+    pub use crate::colors::{Color, Writer};
     pub use crate::trace::enable_tracer;
 }
 

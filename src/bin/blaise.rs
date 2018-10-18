@@ -1,13 +1,18 @@
 use std::{env,fs};
+use std::sync::Arc;
+use std::io::prelude::*;
 
-#[macro_use]
+use termcolor::{BufferWriter, ColorChoice};
+
 extern crate blaise;
 
 use blaise::prelude::*;
 use blaise::config::*;
 
 fn die(data: &str) -> ! {
-    eprintln!("{}", data);
+    if !data.is_empty() {
+        eprintln!("{}", data);
+    }
     ::std::process::exit(1)
 }
 
@@ -37,59 +42,64 @@ fn main() {
     )
     .expect("to enable logging");
 
-    if config.use_colors {
-        enable_colors()
-    }
+    let w = Arc::new(BufferWriter::stderr(if config.use_colors {
+        ColorChoice::Auto
+    } else {
+        ColorChoice::Never
+    }));
+    let mut writer = Writer::new(Arc::clone(&w));
 
     let input = fs::read_to_string(&file).expect("read");
     if config.show_source {
-        eprintln!(
-            "{}\n{}",
-            wrap_color!(Color::BrightYellow {}, "Source=>"),
-            input
-        );
+        writer.wrap(Color::Yellow, "Source=>\n");
+        writeln!(writer, "{}", input);
+        writer.flush().expect("flush");
     }
 
     let mut tokens = scan(&input);
     tokens.remove_comments();
 
     if config.show_tokens {
-        eprintln!(
-            "{}\n{}",
-            wrap_color!(Color::BrightYellow {}, "Tokens=>"),
-            tokens
-        );
+        writer.wrap(Color::Yellow, "Tokens=>\n");
+        writeln!(writer, "{}", tokens);
+        writer.flush().expect("flush");
     }
 
-    if config.show_trace {
-        enable_tracer();
-        eprintln!("{}", wrap_color!(Color::BrightYellow {}, "Parse trace=>"));
-    }
+    // if config.show_trace {
+    //     enable_tracer();
+    //     writer.wrap(Color::Yellow, "Parse trace=>\n");
+    //     writer.flush().expect("flush");
+    // }
+
     let parser = Parser::new(tokens, input, file);
     let program = match parser.parse() {
         Ok(program) => program,
-        Err(err) => die(&format!("{}", err)),
+        Err(err) => {
+            err.print(&mut writer);
+            die("")
+        }
     };
     if config.show_trace {
-        eprintln!();
+        writeln!(writer);
+        writer.flush().expect("flush");
     }
 
     if config.show_ast {
-        eprintln!(
-            "{}\n{:#?}",
-            wrap_color!(Color::BrightYellow {}, "AST=>"),
-            program
-        );
+        writer.wrap(Color::Yellow, "AST=>\n");
+        writeln!(writer, "{:#?}", program);
+        writer.flush().expect("flush");
     }
 
-    eprintln!("{}", wrap_color!(Color::BrightYellow {}, "Evaluation=>"));
+    writer.wrap(Color::Yellow, "Evaluation=>\n");
+    writer.flush().expect("flush");
+
     let interpreter = Interpreter::new();
     match interpreter.evaluate(program) {
-        Ok(res) => eprintln!(
-            "\n{}\n{:?}",
-            wrap_color!(Color::BrightYellow {}, "Result=>"),
-            res
-        ),
-        Err(err) => die(&format!("{}", err)),
+        Ok(res) => {
+            writer.wrap(Color::Yellow, "Result=>\n");
+            writeln!(writer, "{:?}", res);
+            writer.flush().expect("flush");
+        }
+        Err(err) => die(&format!("{:?}", err)),
     }
 }

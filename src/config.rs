@@ -1,5 +1,4 @@
 use std::env;
-use std::ops::Deref;
 
 #[derive(Default, Debug)]
 pub struct OutputConfig {
