@@ -19,16 +19,13 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn evaluate(mut self, node: Program) -> Result<Object> {
+    pub fn evaluate(node: Program) -> Result<Object> {
+        let mut this = Self::default();
         let Program(Variable(name), block) = node;
-        self.enter(name);
-        self.init()?;
-        let result = self.visit_block(&block)?;
-        self.leave();
+        this.enter(name);
+        this.init()?;
+        let result = this.visit_block(&block)?;
+        this.leave();
         Ok(result)
     }
 

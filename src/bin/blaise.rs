@@ -93,8 +93,7 @@ fn main() {
     writer.wrap(Color::Yellow, "Evaluation=>\n");
     writer.flush().expect("flush");
 
-    let interpreter = Interpreter::new();
-    match interpreter.evaluate(program) {
+    match Interpreter::evaluate(program) {
         Ok(res) => {
             writer.wrap(Color::Yellow, "Result=>\n");
             writeln!(writer, "{:?}", res);

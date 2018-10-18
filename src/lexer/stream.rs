@@ -17,7 +17,6 @@ impl<'a> fmt::Debug for Stream<'a> {
     }
 }
 
-// TODO abstract this away
 impl<'a> Stream<'a> {
     pub fn new(input: &'a str) -> Self {
         Self { input, pos: 0 }
