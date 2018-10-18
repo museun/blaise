@@ -49,7 +49,7 @@ pub(crate) fn read(objects: &[Object]) -> Result<Vec<(&String, Object)>> {
     for object in objects {
         let mut buf = vec![];
         let (name, ty) = match object {
-            Object::Variable(name, ty) => (name, ty),
+            Object::Variable(name, ty, _) => (name, ty),
             e => panic!("{:#?}", e),
         };
 
@@ -108,7 +108,7 @@ pub(crate) fn readln(objects: &[Object]) -> Result<Vec<(&String, Object)>> {
             }
 
             debug!("object: {:?}", object);
-            if let Object::Variable(name, ty) = object {
+            if let Object::Variable(name, ty, _) = object {
                 out.push((
                     name,
                     match ty {

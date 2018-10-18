@@ -8,7 +8,7 @@ pub enum Object {
     Primitive(Primitive),
     Procedure(String, Vec<String>, Block),
     Function(String, Vec<String>, Block, Type),
-    Variable(String, Type),
+    Variable(String, Type, Option<Box<Object>>),
     Builtin(Builtin),
 }
 
@@ -16,14 +16,15 @@ impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Object::Unit => write!(f, "Unit"),
-            Object::Primitive(p) => write!(f, "p: {}", p),
+            Object::Primitive(p) => write!(f, "{}", p),
             Object::Procedure(name, args, _block) => {
                 write!(f, "proc {}({})", name, join_strings(&args, ", "))
             }
             Object::Function(name, args, _block, ty) => {
                 write!(f, "fn {}({}) -> {:?}", name, join_strings(&args, ", "), ty)
             }
-            Object::Variable(name, ty) => write!(f, "{} = {:?}", name, ty),
+            Object::Variable(_name, _ty, Some(var)) => write!(f, "{}", var),
+            Object::Variable(_name, ty, None) => write!(f, "{:?}", ty),
             Object::Builtin(b) => write!(f, "{:?} : Builtin", b),
         }
     }

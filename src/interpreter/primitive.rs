@@ -11,6 +11,17 @@ pub enum Primitive {
     Real(f64),
 }
 
+impl Primitive {
+    pub fn get_type(&self) -> Type {
+        match self {
+            Primitive::Integer(_) => Type::Integer,
+            Primitive::Str(_) => Type::String,
+            Primitive::Boolean(_) => Type::Boolean,
+            Primitive::Real(_) => Type::Real,
+        }
+    }
+}
+
 impl fmt::Display for Primitive {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {

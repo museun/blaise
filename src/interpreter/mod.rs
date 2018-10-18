@@ -88,7 +88,7 @@ impl Interpreter {
         let VariableDeclaration(vars, ty) = node;
         let scope = self.scope()?;
         for var in vars {
-            scope.set(var.clone(), Object::Variable(var.clone(), ty.clone()))
+            scope.set(var.clone(), Object::Variable(var.clone(), ty.clone(), None))
         }
         Ok(())
     }
@@ -151,20 +151,25 @@ impl Interpreter {
                 let mut args = vec![];
                 debug!("params {:#?}", params);
 
-                for param in params {
-                    let obj = self.visit_expression(param)?;
-                    debug!("obj expr: {:?}", obj);
-                    match obj {
+                fn visit_args(object: Object) -> Vec<Object> {
+                    let mut args = vec![];
+                    match object {
+                        Object::Variable(_, _ty, Some(var)) => args.extend(visit_args(*var)),
+
                         Object::Primitive(Primitive::Integer(_))
                         | Object::Primitive(Primitive::Str(_))
                         | Object::Primitive(Primitive::Boolean(_))
-                        | Object::Primitive(Primitive::Real(_)) => args.push(obj),
+                        | Object::Primitive(Primitive::Real(_)) => args.push(object),
 
-                        obj => {
-                            warn!("invalid argument: {:#?}", obj);
-                            return Err(Error::InvalidArgument);
-                        }
+                        obj => panic!("invalid argument: {:#?}", obj),
                     }
+                    args
+                }
+
+                for param in params {
+                    let obj = self.visit_expression(param)?;
+                    debug!("obj expr: {:?}", obj);
+                    args.extend(visit_args(obj))
                 }
                 f(&args)
             }
@@ -173,14 +178,24 @@ impl Interpreter {
                 let mut objects = vec![];
                 for param in params {
                     match self.visit_expression(&param)? {
-                        obj @ Object::Variable(_, _) => objects.push(obj),
+                        obj @ Object::Variable(_, _, _) => objects.push(obj),
                         e => panic!("{:#?}", e),
                     }
                 }
 
                 for (name, result) in f(&objects)? {
                     // TODO check types
-                    self.scope()?.set(name.clone(), result);
+                    self.scope()?.set(
+                        name.clone(),
+                        Object::Variable(
+                            name.clone(),
+                            match &result {
+                                Object::Primitive(p) => p.get_type(),
+                                e => unreachable!("{:#?}", e),
+                            },
+                            Some(Box::new(result)),
+                        ),
+                    );
                 }
 
                 Ok(Object::Unit)

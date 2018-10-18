@@ -73,12 +73,13 @@ impl Scope {
         let mut output = vec![vec![]; 6];
         for (name, obj) in &self.vars {
             let v = match obj {
-                Object::Unit => &mut output[5],
-                Object::Primitive(_) => &mut output[4],
-                Object::Procedure(_, _, _) => &mut output[2],
-                Object::Function(_, _, _, _) => &mut output[3],
-                Object::Variable(_, _) => &mut output[1],
                 Object::Builtin(_) => &mut output[0],
+                Object::Variable(_, _, Some(_)) => &mut output[1],
+                Object::Variable(_, _, None) => &mut output[2],
+                Object::Procedure(_, _, _) => &mut output[3],
+                Object::Function(_, _, _, _) => &mut output[4],
+                Object::Primitive(_) => &mut output[5],
+                _ => continue,
             };
             v.push(format!("{}{} -> {}", pad, name, obj));
         }
