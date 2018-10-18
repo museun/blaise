@@ -15,7 +15,7 @@ build: false
 
 test_script:
   - cargo build --verbose
-  - cargo test --version
+  - cargo test --verbose
 
 branches:
   only:

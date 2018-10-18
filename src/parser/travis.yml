@@ -1,0 +1,16 @@
+dist: trust
+language: rust
+matrix:
+  include:
+    - os: linux
+      rust: nightly
+    - os: osx
+      rust: nightly
+
+script:
+  - cargo build --verbose
+  - cargo test --verbose
+
+branches:
+  only:
+    - master
