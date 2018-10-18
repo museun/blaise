@@ -6,6 +6,7 @@ pub enum Object {
     Primitive(Primitive),
     Procedure(String, Vec<String>, Block),
     Function(String, Vec<String>, Block, Type),
+    Variable(String, Type),
     Builtin(Builtin),
 }
 

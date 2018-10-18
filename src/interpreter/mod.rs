@@ -48,9 +48,14 @@ impl Interpreter {
                         self.visit_function_declaration(func)?;
                     }
                 }
-                _ => {}
+                Declaration::Variable(list) => {
+                    for var in list {
+                        self.visit_variable_declaration(var)?;
+                    }
+                }
             }
         }
+        debug!("{:#?}", self.scope);
         Ok(())
     }
 
@@ -71,6 +76,15 @@ impl Interpreter {
             name.clone(),
             Object::Function(name.clone(), params, block.clone(), ty.clone()),
         );
+        Ok(())
+    }
+
+    fn visit_variable_declaration(&mut self, node: &VariableDeclaration) -> Result<()> {
+        let VariableDeclaration(vars, ty) = node;
+        let scope = self.scope()?;
+        for var in vars {
+            scope.set(var.clone(), Object::Variable(var.clone(), ty.clone()))
+        }
         Ok(())
     }
 
