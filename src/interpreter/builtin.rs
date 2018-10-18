@@ -40,5 +40,9 @@ pub(crate) fn readln() -> Result<Object> {
             debug!("cannot read stdin: {}", e);
             Error::CannotRead
         })
-        .and_then(|_| Ok(Object::Primitive(String(buf))))
+        .and_then(|_| {
+            Ok(Object::Primitive(String(
+                buf.trim_right_matches("\r\n").into(),
+            )))
+        })
 }
