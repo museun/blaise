@@ -22,7 +22,7 @@ pub mod prelude {
     pub use crate::parser::{ast, Parser};
 
     pub use crate::colors::{Color, Writer};
-    pub use crate::trace::enable_tracer;
+    pub use crate::trace::Tracer;
 }
 
 #[inline(always)]

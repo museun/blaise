@@ -52,7 +52,7 @@ fn main() {
     let input = fs::read_to_string(&file).expect("read");
     if config.show_source {
         writer.wrap(Color::Yellow, "Source=>\n");
-        writeln!(writer, "{}", input);
+        writeln!(writer, "{}\n", input);
         writer.flush().expect("flush");
     }
 
@@ -65,13 +65,15 @@ fn main() {
         writer.flush().expect("flush");
     }
 
-    // if config.show_trace {
-    //     enable_tracer();
-    //     writer.wrap(Color::Yellow, "Parse trace=>\n");
-    //     writer.flush().expect("flush");
-    // }
+    let tracer = if config.show_trace {
+        writer.wrap(Color::Yellow, "Parse trace=>\n");
+        writer.flush().expect("flush");
+        Some(Tracer::new())
+    } else {
+        None
+    };
 
-    let parser = Parser::new(tokens, input, file);
+    let parser = Parser::new(tokens, input, file, tracer);
     let program = match parser.parse() {
         Ok(program) => program,
         Err(err) => {

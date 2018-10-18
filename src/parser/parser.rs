@@ -1,22 +1,42 @@
 use super::*;
+use std::rc::Rc;
+
+macro_rules! traced {
+    ($this:expr, $name:expr) => {
+        let _t = $this.tracer.as_ref().map(Rc::clone);
+        let _t = _t.as_ref().map(|s| s.trace($name));
+    };
+
+    ($this:expr, $name:expr, $fmt:expr, $($arg:tt)*) => {
+        let _t = $this.tracer.as_ref().map(Rc::clone);
+        let _t = _t.as_ref().map(|s| s.trace(format!($fmt, $($arg)*)));
+    };
+}
 
 pub struct Parser {
     tokens: Tokens,
     source: String,
     filename: String,
+    tracer: Option<Rc<Tracer>>,
 }
 
 impl Parser {
-    pub fn new(tokens: Tokens, source: impl Into<String>, filename: impl Into<String>) -> Self {
+    pub fn new(
+        tokens: Tokens,
+        source: impl Into<String>,
+        filename: impl Into<String>,
+        tracer: Option<Tracer>,
+    ) -> Self {
         Self {
             tokens,
             source: source.into(),
             filename: filename.into(),
+            tracer: tracer.map(Rc::new),
         }
     }
 
     pub fn parse(mut self) -> Result<Program> {
-        // traced!("parse");
+        traced!(self, "parse");
 
         let program = self.program()?;
         self.advance();
@@ -40,7 +60,7 @@ impl Parser {
     }
 
     pub fn program(&mut self) -> Result<Program> {
-        // traced!("program");
+        traced!(self, "program");
 
         self.expect("program")?;
 
@@ -54,7 +74,7 @@ impl Parser {
     }
 
     fn block(&mut self) -> Result<Block> {
-        // traced!("block");
+        traced!(self, "block");
 
         let decls = self.declarations()?;
         let compound = self.compound_statement()?;
@@ -63,7 +83,7 @@ impl Parser {
     }
 
     fn declarations(&mut self) -> Result<Vec<Declaration>> {
-        // traced!("declarations");
+        traced!(self, "declarations");
 
         let mut vars = vec![];
         if let TokenType::Var = self.current()? {
@@ -104,7 +124,7 @@ impl Parser {
     }
 
     fn variable_declaration(&mut self) -> Result<VariableDeclaration> {
-        // traced!("variable_declaration");
+        traced!(self, "variable_declaration");
 
         let mut idents = vec![self.identifier()?];
         while self.consume(",") {
@@ -119,7 +139,7 @@ impl Parser {
     }
 
     fn procedure_declaration(&mut self) -> Result<ProcedureDeclaration> {
-        // traced!("procedure_declaration");
+        traced!(self, "procedure_declaration");
 
         self.expect("procedure")?;
         let name = self.identifier()?;
@@ -141,7 +161,7 @@ impl Parser {
     }
 
     fn function_declaration(&mut self) -> Result<FunctionDeclaration> {
-        // traced!("function_declaration");
+        traced!(self, "function_declaration");
 
         self.expect("function")?;
         let name = self.identifier()?;
@@ -166,7 +186,7 @@ impl Parser {
     }
 
     fn formal_parameter_list(&mut self) -> Result<FormalParameterList> {
-        // traced!("formal_parameter_list");
+        traced!(self, "formal_parameter_list");
 
         let mut list = vec![];
         if let TokenType::Identifier(_) = self.current()? {
@@ -180,7 +200,7 @@ impl Parser {
     }
 
     fn formal_parameter(&mut self) -> Result<FormalParameter> {
-        // traced!("formal_parameter");
+        traced!(self, "formal_parameter");
 
         let mut idents = vec![self.identifier()?];
         while self.consume(",") {
@@ -192,7 +212,7 @@ impl Parser {
     }
 
     fn compound_statement(&mut self) -> Result<Compound> {
-        // traced!("compound_statement");
+        traced!(self, "compound_statement");
 
         self.expect("begin")?;
         if let TokenType::End = self.current()? {
@@ -215,7 +235,7 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statement> {
-        // traced!("statement");
+        traced!(self, "statement");
 
         use self::Statement::*;
         let res = match self.current()? {
@@ -235,19 +255,21 @@ impl Parser {
     }
 
     fn function_call(&mut self) -> Result<FunctionCall> {
-        // traced!("function_call");
-
+        traced!(self, "function_call");
+        trace!("function call");
         let var = self.variable()?;
 
         self.expect("(")?;
         let params = self.call_params()?;
         self.expect(")")?;
 
+        trace!("var: {:?} | params: {:?}", var, params);
+
         Ok(FunctionCall(var, params))
     }
 
     fn assignment_statement(&mut self) -> Result<Assignment> {
-        // traced!("assignment_statement");
+        traced!(self, "assignment_statement");
 
         let var = self.variable()?;
         self.expect(":=")?;
@@ -257,7 +279,7 @@ impl Parser {
     }
 
     fn if_statement(&mut self) -> Result<IfStatement> {
-        // traced!("if_statement");
+        traced!(self, "if_statement");
 
         self.expect("if")?;
         let expr = self.expression(None)?;
@@ -280,7 +302,7 @@ impl Parser {
     }
 
     fn repetitive(&mut self) -> Result<Repetitive> {
-        // traced!("repetitive");
+        traced!(self, "repetitive");
 
         match self.current()? {
             TokenType::Repeat => {
@@ -323,7 +345,8 @@ impl Parser {
     }
 
     fn call_params(&mut self) -> Result<CallParams> {
-        // traced!("call_params");
+        traced!(self, "call_params");
+        trace!("call_params: {:?}", self.current()?);
 
         if let TokenType::CloseParen = self.current()? {
             return Ok(CallParams::default());
@@ -338,7 +361,7 @@ impl Parser {
     }
 
     fn grouping(&mut self) -> Result<GroupExpression> {
-        // traced!("grouping");
+        traced!(self, "grouping");
 
         self.expect("(")?;
         let expr = self.expression(None)?;
@@ -348,7 +371,7 @@ impl Parser {
     }
 
     fn expression(&mut self, p: Option<Precedence>) -> Result<Expression> {
-        // traced!("expression");
+        traced!(self, "expression");
 
         let current = &self.current()?;
         let mut lhs = self.prefix(current)?;
@@ -378,7 +401,7 @@ impl Parser {
     }
 
     fn prefix(&mut self, tok: &TokenType) -> Result<Expression> {
-        // traced!("prefix");
+        traced!(self, "prefix");
 
         use self::TokenType::*;
         let ok = match tok {
@@ -408,7 +431,7 @@ impl Parser {
     }
 
     fn infix(&mut self, tok: &TokenType, lhs: Expression) -> Result<Expression> {
-        // traced!("infix");
+        traced!(self, "infix");
 
         use self::TokenType::*;
         let ok = match tok {
@@ -458,7 +481,7 @@ impl Parser {
     }
 
     fn unary_op(&mut self, p: Precedence) -> Result<UnaryExpression> {
-        // traced!("unary_op");
+        traced!(self, "unary_op");
 
         let op = self.current()?.as_unary_op().unwrap();
         self.advance();
@@ -467,7 +490,7 @@ impl Parser {
     }
 
     fn binary_op(&mut self, lhs: Expression, p: Precedence) -> Result<BinaryExpression> {
-        // traced!("binary_op");
+        traced!(self, "binary_op");
 
         let op = self.current()?.as_binary_op().unwrap();
         self.advance();
@@ -476,7 +499,7 @@ impl Parser {
     }
 
     fn function_call_expr(&mut self, lhs: Expression) -> Result<FunctionCall> {
-        // traced!("function_call_expr");
+        traced!(self, "function_call_expr");
 
         let name = match lhs {
             Expression::Variable(name) => name,
@@ -494,7 +517,7 @@ impl Parser {
     }
 
     fn literal(&mut self) -> Result<Literal> {
-        // traced!("literal");
+        traced!(self, "literal");
 
         let res = match self.current()? {
             TokenType::Integer(n) => Literal::Integer(n),
@@ -516,13 +539,13 @@ impl Parser {
     }
 
     fn variable(&mut self) -> Result<Variable> {
-        // traced!("variable");
+        traced!(self, "variable");
 
         Ok(Variable(self.identifier()?))
     }
 
     fn ty(&mut self) -> Result<Type> {
-        // traced!("ty");
+        traced!(self, "ty");
 
         match self.expect(TokenType::TypeName(token::Type::Unit))? {
             TokenType::TypeName(ty) => Ok(ty.into()),
@@ -531,7 +554,7 @@ impl Parser {
     }
 
     fn identifier(&mut self) -> Result<String> {
-        // traced!("identifier");
+        traced!(self, "identifier");
 
         match self.expect(TokenType::Identifier("".into()))? {
             TokenType::Identifier(id) => Ok(id),
@@ -540,7 +563,7 @@ impl Parser {
     }
 
     fn consume<T: Into<TokenType>>(&mut self, tok: T) -> bool {
-        // traced!("consume");
+        traced!(self, "consume");
 
         let tok = tok.into();
         match self.current() {
@@ -553,13 +576,13 @@ impl Parser {
     }
 
     fn peek(&mut self) -> Option<TokenType> {
-        // traced!("peek");
+        traced!(self, "peek");
 
         self.tokens.peek()
     }
 
     fn current(&mut self) -> Result<TokenType> {
-        // traced!("current");
+        traced!(self, "current");
 
         match self.tokens.current().take() {
             Some(t) => Ok(t),
@@ -568,13 +591,13 @@ impl Parser {
     }
 
     fn advance(&mut self) {
-        // traced!("advance");
+        traced!(self, "advance");
 
         self.tokens.advance()
     }
 
     fn expect<T: Into<TokenType> + Clone>(&mut self, tok: T) -> Result<TokenType> {
-        // traced!("expect");
+        traced!(self, "expect");
 
         use std::mem::discriminant;
         let current = self.current()?;
@@ -588,7 +611,7 @@ impl Parser {
     }
 
     fn expected<E: Into<TokenType> + Clone, T>(&mut self, tok: &[E]) -> Result<T> {
-        // traced!("expected");
+        traced!(self, "expected");
 
         let current = self.current()?;
         self.error(ErrorKind::Expected(
@@ -598,13 +621,13 @@ impl Parser {
     }
 
     fn unexpected<E: Into<TokenType>, T>(&self, tok: E) -> Result<T> {
-        // traced!("unexpected");
+        traced!(self, "unexpected");
 
         self.error(ErrorKind::Unexpected(tok.into()))
     }
 
     fn error<E: Into<ErrorKind>, T>(&self, err: E) -> Result<T> {
-        // traced!("error");
+        traced!(self, "error");
 
         let error = Error::new(
             err,
