@@ -684,21 +684,23 @@ mod tests {
             assert_eq!($left, $right)
         };
         ($left:expr, $right:expr) => {{
-            #[cfg(feature = "dump")]
+            #[cfg(not(feature = "dump"))]
             {
                 ::std::assert_eq!($left, $right);
-                return;
             }
 
-            match (&($left), &($right)) {
-                (l, r) => {
-                    if !(*l == *r) {
-                        let l = format!("{:#?}", l);
-                        let r = format!("{:#?}", r);
-                        ::std::fs::write("diff_r.txt", l.as_bytes()).expect("write");
-                        ::std::fs::write("diff_l.txt", r.as_bytes()).expect("write");
+            #[cfg(feature = "dump")]
+            {
+                match (&($left), &($right)) {
+                    (l, r) => {
+                        if !(*l == *r) {
+                            let l = format!("{:#?}", l);
+                            let r = format!("{:#?}", r);
+                            ::std::fs::write("diff_r.txt", l.as_bytes()).expect("write");
+                            ::std::fs::write("diff_l.txt", r.as_bytes()).expect("write");
 
-                        panic!("{}\n---\n{}", l, r)
+                            panic!("{}\n---\n{}", l, r)
+                        }
                     }
                 }
             }
@@ -1460,20 +1462,20 @@ mod tests {
 
     fn make_parser(input: &str) -> Parser {
         #[cfg(feature = "dump")]
-        let _ = env_logger::Builder::from_default_env()
-            .default_format_timestamp(false)
-            .try_init();
-
-        #[cfg(feature = "dump")]
-        enable_colors();
-
-        #[cfg(feature = "dump")]
-        enable_tracer();
-
-        #[cfg(feature = "dump")]
         eprintln!("{}", &input);
 
+        let tracer = {
+            #[cfg(feature = "dump")]
+            {
+                Some(Tracer::new())
+            }
+            #[cfg(not(feature = "dump"))]
+            {
+                None
+            }
+        };
+
         let tokens = scan(&input);
-        Parser::new(tokens, input.to_string(), "".to_string())
+        Parser::new(tokens, input.to_string(), "".to_string(), tracer)
     }
 }
