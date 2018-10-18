@@ -256,7 +256,6 @@ impl Parser {
 
     fn function_call(&mut self) -> Result<FunctionCall> {
         traced!(self, "function_call");
-        trace!("function call");
         let var = self.variable()?;
 
         self.expect("(")?;
@@ -508,7 +507,9 @@ impl Parser {
 
         let params = if let TokenType::OpenParen = self.current()? {
             self.advance();
-            self.call_params()?
+            let params = self.call_params()?;
+            self.expect(")")?;
+            params
         } else {
             CallParams::default()
         };
